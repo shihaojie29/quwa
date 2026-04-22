@@ -1,0 +1,910 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>去哇 · Travel Together</title>
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  background: #E8DDD0;
+  background-image: radial-gradient(circle at 20% 20%, #F0E6D8 0%, transparent 60%),
+                    radial-gradient(circle at 80% 80%, #DDD0C4 0%, transparent 60%);
+  min-height: 100vh;
+  font-family: 'PingFang SC','Helvetica Neue',sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+::-webkit-scrollbar { display: none; }
+scrollbar-width: none;
+button { font-family: inherit; }
+.canvas {
+  padding: 44px 48px 60px;
+  display: flex; gap: 56px;
+  align-items: flex-start;
+  justify-content: center;
+  min-width: 900px;
+}
+.phone-col { display: flex; flex-direction: column; align-items: center; gap: 18px; }
+.style-label {
+  font-size: 11px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase;
+  color: #6B5840; background: rgba(255,255,255,0.55);
+  padding: 6px 18px; border-radius: 20px;
+  backdrop-filter: blur(10px); border: 1px solid rgba(255,255,255,0.4);
+}
+.canvas-title {
+  text-align: center; padding: 40px 0 8px;
+  font-size: 13px; letter-spacing: 0.15em; text-transform: uppercase;
+  color: #8B7358; font-weight: 600;
+}
+/* tweaks panel */
+.tweaks-panel {
+  position: fixed; bottom: 24px; right: 24px;
+  background: rgba(255,255,255,0.92); backdrop-filter: blur(16px);
+  border: 1px solid rgba(255,255,255,0.6);
+  border-radius: 20px; padding: 18px 20px; width: 220px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.12);
+  z-index: 1000; display: none; flex-direction: column; gap: 14px;
+}
+.tweaks-panel.visible { display: flex; }
+.tweaks-title { font-size: 13px; font-weight: 700; color: #3A2418; }
+.tweak-row { display: flex; flex-direction: column; gap: 6px; }
+.tweak-label { font-size: 11px; color: #9C7254; font-weight: 600; }
+.tweak-options { display: flex; gap: 6px; flex-wrap: wrap; }
+.tweak-btn {
+  padding: 5px 12px; border-radius: 10px; border: 1px solid #E8D5BA;
+  background: #FEF9F1; color: #7B5A3A; font-size: 11px; font-weight: 600;
+  cursor: pointer; transition: all 0.15s;
+}
+.tweak-btn.active { background: #C96442; color: #fff; border-color: #C96442; }
+</style>
+</head>
+<body>
+<script type="text/babel" src="ios-frame.jsx"></script>
+<script type="text/babel">
+const { useState, useEffect } = React;
+
+// ─── TWEAK DEFAULTS ─────────────────────────────────────────
+const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
+  "coupleNames": "小鱼 & 阿橙",
+  "tripName": "大阪·京都 6日游",
+  "daysLeft": 12
+}/*EDITMODE-END*/;
+
+// ─── DATA ────────────────────────────────────────────────────
+const TRIP = {
+  name: '大阪·京都 6日游',
+  city: 'OSAKA',
+  dest: '日本 🇯🇵',
+  dates: '5月20日 — 5月25日',
+  daysLeft: 12,
+  totalDays: 6,
+  budget: 12000,
+  spent: 4800,
+  spots: 15,
+  users: [
+    { name: '小鱼', color: '#F07A5A', initial: '鱼' },
+    { name: '阿橙', color: '#FFB84D', initial: '橙' },
+  ],
+  days: [
+    { label: 'Day 1', date: '5/20', items: [
+      { time: '10:30', name: '抵达关西机场', type: 'flight', note: 'JL789 落地' },
+      { time: '13:00', name: '道顿堀午餐', type: 'food', note: '章鱼烧必吃！' },
+      { time: '15:00', name: '心斋桥逛街', type: 'shop', note: '' },
+      { time: '20:00', name: '入住难波酒店', type: 'hotel', note: '已预订确认 ✓' },
+    ]},
+    { label: 'Day 2', date: '5/21', items: [
+      { time: '09:00', name: '大阪城公园', type: 'sight', note: '' },
+      { time: '12:00', name: '黑门市场', type: 'food', note: '买新鲜海鲜！' },
+      { time: '14:00', name: '通天阁', type: 'sight', note: '' },
+      { time: '19:00', name: '居酒屋晚餐', type: 'food', note: '已预约 19:00 2位' },
+    ]},
+    { label: 'Day 3', date: '5/22', items: [
+      { time: '08:30', name: '新干线 → 京都', type: 'train', note: '约35分钟' },
+      { time: '10:30', name: '伏见稻荷大社', type: 'sight', note: '千鸟居打卡！' },
+      { time: '13:00', name: '锦市场午餐', type: 'food', note: '' },
+      { time: '15:30', name: '清水寺', type: 'sight', note: '' },
+    ]},
+  ],
+  expenses: [
+    { name: '机票（往返）', amount: 3200, cat: '交通', by: '小鱼', date: '4/10' },
+    { name: '酒店 6晚', amount: 1800, cat: '住宿', by: '阿橙', date: '4/12' },
+    { name: 'IC交通卡 ×2', amount: 400, cat: '交通', by: '小鱼', date: '5/20' },
+    { name: '大阪城门票', amount: 120, cat: '景点', by: '阿橙', date: '5/21' },
+    { name: '道顿堀晚餐', amount: 280, cat: '餐饮', by: '小鱼', date: '5/20' },
+  ],
+  packing: {
+    '证件证卡': [
+      { name: '护照', done: true }, { name: '签证截图', done: true },
+      { name: '信用卡 / 现金', done: true }, { name: '旅游保险', done: false },
+    ],
+    '衣物': [
+      { name: '换洗衣物 ×5', done: true }, { name: '外套', done: false },
+      { name: '运动鞋', done: false }, { name: '雨伞', done: false },
+    ],
+    '电子': [
+      { name: '充电宝', done: true }, { name: '相机 + 充电器', done: false },
+      { name: '万用插头', done: false }, { name: '耳机', done: true },
+    ],
+    '其他': [
+      { name: '防晒霜', done: false }, { name: '常备药', done: false },
+      { name: '旅行枕', done: false },
+    ],
+  },
+  notes: [
+    { id: 1, from: '小鱼', text: '要不要提前订清水寺附近的茶屋？🍵', time: '昨天 20:14', me: false },
+    { id: 2, from: '阿橙', text: '好呀！居酒屋预约确认了！出发倒计时12天🎉', time: '昨天 20:16', me: true },
+    { id: 3, from: '小鱼', text: '太好了！我想去锦市场，能加到行程里吗？', time: '昨天 20:32', me: false },
+    { id: 4, from: '阿橙', text: '加进去了！在清水寺之后 ☕', time: '今天 09:08', me: true },
+    { id: 5, from: '小鱼', text: '你最好啦！爱你 🧡', time: '今天 09:10', me: false },
+  ],
+};
+
+// ─── THEMES ─────────────────────────────────────────────────
+const THEMES = {
+  journal: {
+    id: 'journal',
+    bg: '#F3E9D8',
+    card: '#FEF8EE',
+    primary: '#C96040',
+    accent: '#E8A050',
+    grad: 'linear-gradient(140deg,#C96040 0%,#E8A050 100%)',
+    heroGrad: 'linear-gradient(155deg,#B85438 0%,#C96040 45%,#E09850 100%)',
+    text: '#3A2218',
+    muted: '#9A7050',
+    soft: '#E8D4B4',
+    tabBg: '#FBF2E0',
+    tabBorder: '#E4CFA6',
+    r: 12,
+    rCard: 16,
+    headFont: "'Georgia','Palatino',serif",
+    bodyFont: "'PingFang SC','Helvetica Neue',sans-serif",
+  },
+  candy: {
+    id: 'candy',
+    bg: '#FFF0EA',
+    card: '#FFFFFF',
+    primary: '#FF4E28',
+    accent: '#FF9A46',
+    grad: 'linear-gradient(140deg,#FF4E28 0%,#FF9A46 100%)',
+    heroGrad: 'linear-gradient(155deg,#F03A18 0%,#FF5533 45%,#FF9A46 100%)',
+    text: '#1A0A05',
+    muted: '#A86848',
+    soft: '#FFD5C0',
+    tabBg: '#FFFFFF',
+    tabBorder: '#FFCCB4',
+    r: 22,
+    rCard: 26,
+    headFont: "'PingFang SC','Helvetica Neue',sans-serif",
+    bodyFont: "'PingFang SC','Helvetica Neue',sans-serif",
+  },
+};
+
+// ─── TYPE CONFIG ─────────────────────────────────────────────
+const TYPE_CFG = {
+  flight: { e: '✈️', dot: '#5B8ED4' },
+  food:   { e: '🍜', dot: '#E8934A' },
+  sight:  { e: '🏯', dot: '#4AAE78' },
+  hotel:  { e: '🏨', dot: '#B07AE0' },
+  shop:   { e: '🛍️', dot: '#D4B44A' },
+  train:  { e: '🚄', dot: '#4A9BE0' },
+};
+const CAT_CFG = {
+  '交通': { e: '✈️', c: '#4A84C4', bg: '#EBF2FE' },
+  '住宿': { e: '🏨', c: '#A07AD4', bg: '#F4EFFE' },
+  '餐饮': { e: '🍜', c: '#D4784A', bg: '#FEF0E8' },
+  '景点': { e: '🎫', c: '#4AAE78', bg: '#EAF8F0' },
+};
+
+// ─── HOME SCREEN ─────────────────────────────────────────────
+function HomeScreen({ t }) {
+  const progress = TRIP.spent / TRIP.budget;
+  const u = TRIP.users;
+
+  return (
+    <div style={{ background: t.bg, minHeight: '100%', paddingBottom: 80 }}>
+      {/* HERO TICKET */}
+      <div style={{ background: t.heroGrad, padding: '0 20px 0', position: 'relative' }}>
+        <div style={{ paddingTop: 62 }}>
+          {t.id === 'journal' && (
+            <div style={{ display: 'flex', gap: 6, marginBottom: 8 }}>
+              {['TRAVEL','PLAN','2025'].map(w => (
+                <span key={w} style={{
+                  fontSize: 9, fontWeight: 700, letterSpacing: 2, color: 'rgba(255,255,255,0.55)',
+                  border: '1px solid rgba(255,255,255,0.3)', padding: '2px 6px', borderRadius: 3,
+                }}>{w}</span>
+              ))}
+            </div>
+          )}
+          {t.id === 'candy' && (
+            <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.65)', letterSpacing: 3, marginBottom: 4, fontWeight: 600 }}>
+              NEXT ADVENTURE
+            </div>
+          )}
+          <div style={{
+            fontSize: t.id === 'journal' ? 46 : 52,
+            fontWeight: 900, color: '#fff', lineHeight: 0.9,
+            fontFamily: t.headFont,
+            letterSpacing: t.id === 'candy' ? -2 : 0,
+          }}>
+            {TRIP.city}
+          </div>
+          <div style={{ color: 'rgba(255,255,255,0.8)', fontSize: 13, marginTop: 6, fontFamily: t.bodyFont }}>
+            {TRIP.dates}
+          </div>
+        </div>
+
+        {/* avatars + countdown */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 16, paddingBottom: 24 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            {u.map((usr, i) => (
+              <div key={i} style={{
+                width: 34, height: 34, borderRadius: 17,
+                background: usr.color, border: '2px solid rgba(255,255,255,0.8)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                color: '#fff', fontSize: 12, fontWeight: 700,
+                marginLeft: i > 0 ? -8 : 0, zIndex: i === 0 ? 2 : 1,
+              }}>{usr.initial}</div>
+            ))}
+            <div style={{ color: 'rgba(255,255,255,0.9)', fontSize: 12, marginLeft: 6, fontWeight: 500 }}>
+              {u.map(x => x.name).join(' & ')}
+            </div>
+          </div>
+          <div style={{
+            background: 'rgba(255,255,255,0.18)', backdropFilter: 'blur(8px)',
+            borderRadius: t.r === 12 ? 10 : 16, padding: '8px 14px',
+            border: '1px solid rgba(255,255,255,0.2)', textAlign: 'center',
+          }}>
+            <div style={{ color: '#fff', fontSize: 26, fontWeight: 900, lineHeight: 1, fontFamily: t.headFont }}>
+              {TRIP.daysLeft}
+            </div>
+            <div style={{ color: 'rgba(255,255,255,0.75)', fontSize: 10, marginTop: 1 }}>天后出发</div>
+          </div>
+        </div>
+
+        {/* ticket tear */}
+        <svg viewBox="0 0 390 24" preserveAspectRatio="none" style={{ display: 'block', width: '100%', height: 24, margin: '0 -20px', width: 'calc(100% + 40px)' }}>
+          <path d="M0 0 Q9.75 24 19.5 0 Q29.25 24 39 0 Q48.75 24 58.5 0 Q68.25 24 78 0 Q87.75 24 97.5 0 Q107.25 24 117 0 Q126.75 24 136.5 0 Q146.25 24 156 0 Q165.75 24 175.5 0 Q185.25 24 195 0 Q204.75 24 214.5 0 Q224.25 24 234 0 Q243.75 24 253.5 0 Q263.25 24 273 0 Q282.75 24 292.5 0 Q302.25 24 312 0 Q321.75 24 331.5 0 Q341.25 24 351 0 Q360.75 24 370.5 0 Q380.25 24 390 0 L390 24 L0 24 Z" fill={t.bg}/>
+        </svg>
+      </div>
+
+      {/* STATS ROW */}
+      <div style={{ display: 'flex', gap: 10, padding: '14px 16px 0' }}>
+        {[
+          { label: '行程天数', val: `${TRIP.totalDays}天` },
+          { label: '总预算', val: `¥${(TRIP.budget/1000).toFixed(0)}K` },
+          { label: '景点安排', val: `${TRIP.spots}个` },
+        ].map((s, i) => (
+          <div key={i} style={{
+            flex: 1, background: t.card, borderRadius: t.rCard,
+            padding: '14px 8px', textAlign: 'center',
+            boxShadow: t.id === 'candy' ? '0 4px 20px rgba(255,78,40,0.08)' : '0 2px 10px rgba(60,30,10,0.06)',
+            border: t.id === 'journal' ? `1px dashed ${t.soft}` : 'none',
+            position: 'relative', overflow: 'hidden',
+          }}>
+            {t.id === 'journal' && i === 0 && (
+              <div style={{ position: 'absolute', top: -4, left: 12, width: 32, height: 8, background: `${t.accent}80`, borderRadius: 2, transform: 'rotate(-2deg)' }}/>
+            )}
+            <div style={{ fontSize: 22, fontWeight: 900, color: t.text, lineHeight: 1, fontFamily: t.headFont }}>{s.val}</div>
+            <div style={{ fontSize: 10, color: t.muted, marginTop: 4 }}>{s.label}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* BUDGET */}
+      <div style={{
+        margin: '12px 16px 0', background: t.card, borderRadius: t.rCard,
+        padding: '14px 16px',
+        boxShadow: t.id === 'candy' ? '0 4px 20px rgba(255,78,40,0.08)' : '0 2px 10px rgba(60,30,10,0.06)',
+        border: t.id === 'journal' ? `1px dashed ${t.soft}` : 'none',
+      }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8, alignItems: 'center' }}>
+          <span style={{ fontSize: 13, fontWeight: 700, color: t.text }}>💰 预算进度</span>
+          <span style={{ fontSize: 11, color: t.muted }}>¥{TRIP.spent.toLocaleString()} / ¥{TRIP.budget.toLocaleString()}</span>
+        </div>
+        <div style={{ background: t.soft, borderRadius: 100, height: 8, overflow: 'hidden' }}>
+          <div style={{ width: `${progress * 100}%`, height: '100%', background: t.grad, borderRadius: 100 }}/>
+        </div>
+        <div style={{ fontSize: 11, color: t.muted, marginTop: 6 }}>
+          剩余 ¥{(TRIP.budget - TRIP.spent).toLocaleString()} · {Math.round(progress * 100)}% 已使用
+        </div>
+      </div>
+
+      {/* TODAY PREVIEW */}
+      <div style={{ margin: '14px 16px 0' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+          <span style={{ fontSize: 14, fontWeight: 700, color: t.text, fontFamily: t.headFont }}>Day 1 行程预览</span>
+          <span style={{ fontSize: 12, color: t.primary, fontWeight: 600 }}>查看全部 ›</span>
+        </div>
+        <div style={{
+          background: t.card, borderRadius: t.rCard, overflow: 'hidden',
+          boxShadow: t.id === 'candy' ? '0 4px 20px rgba(255,78,40,0.08)' : '0 2px 10px rgba(60,30,10,0.06)',
+          border: t.id === 'journal' ? `1px dashed ${t.soft}` : 'none',
+        }}>
+          {TRIP.days[0].items.slice(0, 3).map((item, i) => {
+            const cfg = TYPE_CFG[item.type] || TYPE_CFG.sight;
+            return (
+              <div key={i} style={{
+                display: 'flex', alignItems: 'center', gap: 12,
+                padding: '10px 14px',
+                borderBottom: i < 2 ? `1px solid ${t.id === 'journal' ? t.soft : '#F5EDE6'}` : 'none',
+              }}>
+                <div style={{
+                  width: 34, height: 34, borderRadius: t.r === 12 ? 10 : 17,
+                  background: `${cfg.dot}18`,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  fontSize: 17, flexShrink: 0,
+                }}>{cfg.e}</div>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: t.text }}>{item.name}</div>
+                  {item.note ? <div style={{ fontSize: 11, color: t.muted }}>{item.note}</div> : null}
+                </div>
+                <div style={{ fontSize: 11, color: t.muted, flexShrink: 0 }}>{item.time}</div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* PARTNER ACTIVITY */}
+      <div style={{ margin: '14px 16px 0' }}>
+        <div style={{ fontSize: 13, fontWeight: 700, color: t.text, marginBottom: 8, fontFamily: t.headFont }}>最近动态</div>
+        <div style={{
+          background: t.card, borderRadius: t.rCard, padding: '12px 14px',
+          display: 'flex', alignItems: 'center', gap: 12,
+          boxShadow: t.id === 'candy' ? '0 4px 20px rgba(255,78,40,0.08)' : '0 2px 10px rgba(60,30,10,0.06)',
+          border: t.id === 'journal' ? `1px dashed ${t.soft}` : 'none',
+        }}>
+          <div style={{ width: 36, height: 36, borderRadius: 18, background: u[0].color, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: 13, fontWeight: 700, flexShrink: 0 }}>{u[0].initial}</div>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: 13, color: t.text }}><b>{u[0].name}</b> 更新了备注</div>
+            <div style={{ fontSize: 11, color: t.muted }}>「要不要提前订清水寺附近的茶屋…」</div>
+          </div>
+          <div style={{ fontSize: 10, color: t.muted }}>9分钟前</div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── ITINERARY SCREEN ────────────────────────────────────────
+function ItineraryScreen({ t }) {
+  const [activeDay, setActiveDay] = useState(0);
+  const day = TRIP.days[activeDay];
+  const [mapView, setMapView] = useState(false);
+
+  return (
+    <div style={{ background: t.bg, minHeight: '100%', paddingBottom: 80 }}>
+      <div style={{ padding: '62px 16px 10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <span style={{ fontSize: 20, fontWeight: 800, color: t.text, fontFamily: t.headFont }}>行程安排</span>
+        <div style={{ display: 'flex', gap: 6 }}>
+          {['列表','地图'].map(v => (
+            <button key={v} onClick={() => setMapView(v === '地图')} style={{
+              padding: '5px 12px', borderRadius: t.r, fontSize: 11, fontWeight: 600,
+              background: (v === '地图') === mapView ? t.primary : t.card,
+              color: (v === '地图') === mapView ? '#fff' : t.muted,
+              border: t.id === 'journal' ? `1px dashed ${t.soft}` : `1px solid ${t.soft}`,
+              cursor: 'pointer',
+            }}>{v}</button>
+          ))}
+        </div>
+      </div>
+
+      {/* day selector */}
+      <div style={{ display: 'flex', gap: 8, padding: '0 16px 12px', overflowX: 'auto' }}>
+        {TRIP.days.map((d, i) => (
+          <button key={i} onClick={() => setActiveDay(i)} style={{
+            flexShrink: 0, padding: '8px 14px', borderRadius: t.r === 12 ? 10 : 20,
+            background: activeDay === i ? t.primary : t.card,
+            color: activeDay === i ? '#fff' : t.muted,
+            border: t.id === 'journal' ? (activeDay === i ? 'none' : `1px dashed ${t.soft}`) : 'none',
+            boxShadow: activeDay === i ? `0 4px 14px ${t.primary}40` : '0 2px 8px rgba(0,0,0,0.05)',
+            cursor: 'pointer', textAlign: 'center',
+          }}>
+            <div style={{ fontSize: 13, fontWeight: 700 }}>{d.label}</div>
+            <div style={{ fontSize: 10, opacity: 0.75 }}>{d.date}</div>
+          </button>
+        ))}
+      </div>
+
+      {mapView ? (
+        /* MAP PLACEHOLDER */
+        <div style={{ margin: '0 16px', borderRadius: t.rCard, overflow: 'hidden', border: t.id === 'journal' ? `1px dashed ${t.soft}` : 'none' }}>
+          <div style={{ background: '#E8E4DC', height: 260, position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <div style={{ position: 'absolute', inset: 0, background: 'repeating-linear-gradient(0deg,transparent,transparent 39px,rgba(0,0,0,0.04) 39px,rgba(0,0,0,0.04) 40px),repeating-linear-gradient(90deg,transparent,transparent 39px,rgba(0,0,0,0.04) 39px,rgba(0,0,0,0.04) 40px)' }}/>
+            <div style={{ textAlign: 'center', color: '#888', fontSize: 13, position: 'relative' }}>
+              <div style={{ fontSize: 28, marginBottom: 8 }}>🗺️</div>
+              <div style={{ fontWeight: 600 }}>大阪地图</div>
+              <div style={{ fontSize: 11, marginTop: 2 }}>景点收藏 · Day 1</div>
+            </div>
+            {/* pins */}
+            {[{x:'30%',y:'40%',n:'道顿堀'},{x:'55%',y:'30%',n:'心斋桥'},{x:'65%',y:'60%',n:'难波酒店'}].map((p,i)=>(
+              <div key={i} style={{ position:'absolute', left:p.x, top:p.y }}>
+                <div style={{ width:28,height:28,borderRadius:14,background:t.grad,display:'flex',alignItems:'center',justifyContent:'center',fontSize:12,boxShadow:`0 3px 10px ${t.primary}40` }}>📍</div>
+                <div style={{ background:'rgba(255,255,255,0.9)',fontSize:10,fontWeight:600,padding:'2px 6px',borderRadius:6,marginTop:2,whiteSpace:'nowrap',color:t.text }}>{p.n}</div>
+              </div>
+            ))}
+          </div>
+          <div style={{ background: t.card, padding: '12px 14px' }}>
+            <div style={{ fontSize: 12, color: t.muted }}>已收藏 3 个景点 · Day 1</div>
+          </div>
+        </div>
+      ) : (
+        /* TIMELINE */
+        <div style={{ padding: '0 16px' }}>
+          {day.items.map((item, i) => {
+            const cfg = TYPE_CFG[item.type] || TYPE_CFG.sight;
+            const isLast = i === day.items.length - 1;
+            return (
+              <div key={i} style={{ display: 'flex', gap: 12 }}>
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: 36, flexShrink: 0 }}>
+                  <div style={{
+                    width: 30, height: 30, borderRadius: 15,
+                    background: `${cfg.dot}18`, border: `2px solid ${cfg.dot}`,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    fontSize: 14, flexShrink: 0, zIndex: 1, marginTop: 2,
+                  }}>{cfg.e}</div>
+                  {!isLast && <div style={{ width: 2, flex: 1, background: `${cfg.dot}25`, minHeight: 20 }}/>}
+                </div>
+                <div style={{
+                  flex: 1, background: t.card, borderRadius: t.rCard,
+                  padding: '10px 14px', marginBottom: 10,
+                  boxShadow: t.id === 'candy' ? '0 3px 14px rgba(255,78,40,0.07)' : '0 2px 8px rgba(60,30,10,0.05)',
+                  border: t.id === 'journal' ? `1px dashed ${t.soft}` : 'none',
+                  position: 'relative', overflow: 'hidden',
+                }}>
+                  {t.id === 'journal' && i === 0 && (
+                    <div style={{ position: 'absolute', top: -3, right: 20, width: 28, height: 7, background: `${t.accent}70`, borderRadius: 2, transform: 'rotate(1.5deg)' }}/>
+                  )}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                    <div style={{ fontSize: 14, fontWeight: 700, color: t.text, flex: 1 }}>{item.name}</div>
+                    <div style={{
+                      fontSize: 11, color: t.primary, fontWeight: 700,
+                      background: `${t.primary}15`, padding: '2px 8px',
+                      borderRadius: t.r === 12 ? 6 : 12, flexShrink: 0, marginLeft: 8,
+                    }}>{item.time}</div>
+                  </div>
+                  {item.note && <div style={{ fontSize: 12, color: t.muted, marginTop: 3 }}>{item.note}</div>}
+                </div>
+              </div>
+            );
+          })}
+          <div style={{
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            padding: '10px', borderRadius: t.rCard,
+            border: `1.5px dashed ${t.soft}`, color: t.muted, fontSize: 13,
+            fontWeight: 600, gap: 4, cursor: 'pointer', marginTop: 2,
+          }}>+ 添加安排</div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── EXPENSE SCREEN ──────────────────────────────────────────
+function ExpenseScreen({ t }) {
+  const u = TRIP.users;
+  // AA toggle per expense: true = AA, false = 不AA（共同花费，只计总额）
+  const [aaFlags, setAaFlags] = useState(() =>
+    Object.fromEntries(TRIP.expenses.map((_, i) => [i, true]))
+  );
+  // Budget editing
+  const [budget, setBudget] = useState(TRIP.budget);
+  const [editingBudget, setEditingBudget] = useState(false);
+  const [budgetInput, setBudgetInput] = useState(String(TRIP.budget));
+
+  const expenses = TRIP.expenses;
+  const total = expenses.reduce((s, e) => s + e.amount, 0);
+
+  // AA split: only include expenses marked as AA
+  const aaExpenses = expenses.filter((_, i) => aaFlags[i]);
+  const aaTotal = aaExpenses.reduce((s, e) => s + e.amount, 0);
+  const aaPaid = {};
+  u.forEach(x => aaPaid[x.name] = 0);
+  aaExpenses.forEach(e => { aaPaid[e.by] = (aaPaid[e.by] || 0) + e.amount; });
+  const aaShare = aaTotal / 2;
+  const diff = (aaPaid[u[0].name] || 0) - aaShare;
+
+  // Total paid (all expenses)
+  const allPaid = {};
+  u.forEach(x => allPaid[x.name] = 0);
+  expenses.forEach(e => { allPaid[e.by] = (allPaid[e.by] || 0) + e.amount; });
+
+  const nonAaCount = expenses.filter((_, i) => !aaFlags[i]).length;
+
+  const confirmBudget = () => {
+    const v = parseInt(budgetInput.replace(/[^0-9]/g, ''), 10);
+    if (v > 0) setBudget(v);
+    setEditingBudget(false);
+  };
+
+  const spentPct = Math.min(total / budget, 1);
+
+  return (
+    <div style={{ background: t.bg, minHeight: '100%', paddingBottom: 80 }}>
+      <div style={{ padding: '62px 16px 14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div style={{ fontSize: 20, fontWeight: 800, color: t.text, fontFamily: t.headFont }}>花费账单</div>
+        {/* Budget setting trigger */}
+        <button onClick={() => { setBudgetInput(String(budget)); setEditingBudget(true); }} style={{
+          background: `${t.primary}15`, border: `1px solid ${t.primary}30`,
+          borderRadius: t.r, padding: '5px 12px', cursor: 'pointer',
+          display: 'flex', alignItems: 'center', gap: 5,
+        }}>
+          <svg width="12" height="12" viewBox="0 0 12 12"><circle cx="6" cy="6" r="5" fill="none" stroke={t.primary} strokeWidth="1.4"/><path d="M6 3v3l2 1" stroke={t.primary} strokeWidth="1.4" strokeLinecap="round"/></svg>
+          <span style={{ fontSize: 11, color: t.primary, fontWeight: 700 }}>预算 ¥{budget.toLocaleString()}</span>
+        </button>
+      </div>
+
+      {/* BUDGET EDIT MODAL */}
+      {editingBudget && (
+        <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.4)', zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
+          <div style={{ background: t.card, borderRadius: t.rCard, padding: '24px 20px', width: '100%', boxShadow: '0 20px 60px rgba(0,0,0,0.2)' }}>
+            <div style={{ fontSize: 16, fontWeight: 800, color: t.text, marginBottom: 4, fontFamily: t.headFont }}>设置旅行预算</div>
+            <div style={{ fontSize: 12, color: t.muted, marginBottom: 16 }}>超出预算会在账单页提醒</div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: t.bg, borderRadius: t.r, padding: '12px 14px', border: `1.5px solid ${t.primary}` }}>
+              <span style={{ fontSize: 18, fontWeight: 700, color: t.muted }}>¥</span>
+              <input
+                autoFocus
+                value={budgetInput}
+                onChange={e => setBudgetInput(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && confirmBudget()}
+                style={{ flex: 1, border: 'none', background: 'transparent', fontSize: 22, fontWeight: 800, color: t.text, outline: 'none', fontFamily: t.headFont }}
+              />
+            </div>
+            <div style={{ display: 'flex', gap: 10, marginTop: 16 }}>
+              <button onClick={() => setEditingBudget(false)} style={{ flex: 1, padding: '12px', borderRadius: t.r, border: `1px solid ${t.soft}`, background: 'transparent', color: t.muted, fontSize: 14, fontWeight: 600, cursor: 'pointer' }}>取消</button>
+              <button onClick={confirmBudget} style={{ flex: 2, padding: '12px', borderRadius: t.r, border: 'none', background: t.grad, color: '#fff', fontSize: 14, fontWeight: 700, cursor: 'pointer', boxShadow: `0 4px 14px ${t.primary}40` }}>确认</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* SUMMARY CARD */}
+      <div style={{ margin: '0 16px 12px', background: t.grad, borderRadius: t.rCard, padding: '20px', boxShadow: `0 8px 28px ${t.primary}35` }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+          <div>
+            <div style={{ color: 'rgba(255,255,255,0.7)', fontSize: 11, fontWeight: 600, letterSpacing: 1 }}>TOTAL SPENT</div>
+            <div style={{ color: '#fff', fontSize: 38, fontWeight: 900, lineHeight: 1.1, fontFamily: t.headFont }}>
+              ¥{total.toLocaleString()}
+            </div>
+          </div>
+          <div style={{ textAlign: 'right' }}>
+            <div style={{ color: 'rgba(255,255,255,0.7)', fontSize: 10 }}>预算剩余</div>
+            <div style={{ color: total > budget ? '#FFD080' : '#fff', fontSize: 16, fontWeight: 800, marginTop: 2 }}>
+              {total > budget ? '超出 ' : '剩余 '}¥{Math.abs(budget - total).toLocaleString()}
+            </div>
+          </div>
+        </div>
+        {/* budget bar */}
+        <div style={{ marginTop: 14 }}>
+          <div style={{ height: 6, borderRadius: 3, background: 'rgba(255,255,255,0.2)', overflow: 'hidden' }}>
+            <div style={{ width: `${spentPct * 100}%`, height: '100%', background: total > budget ? '#FFD080' : 'rgba(255,255,255,0.8)', borderRadius: 3, transition: 'width 0.4s' }}/>
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 5 }}>
+            <span style={{ color: 'rgba(255,255,255,0.7)', fontSize: 10 }}>已花 {Math.round(spentPct*100)}%</span>
+            <span style={{ color: 'rgba(255,255,255,0.7)', fontSize: 10 }}>预算 ¥{budget.toLocaleString()}</span>
+          </div>
+        </div>
+        {/* per-person */}
+        <div style={{ display: 'flex', gap: 16, marginTop: 14, paddingTop: 14, borderTop: '1px solid rgba(255,255,255,0.2)' }}>
+          {u.map((usr, i) => (
+            <div key={i} style={{ flex: 1 }}>
+              <div style={{ color: 'rgba(255,255,255,0.65)', fontSize: 11, marginBottom: 2 }}>{usr.name} 已付</div>
+              <div style={{ color: '#fff', fontSize: 18, fontWeight: 800 }}>¥{(allPaid[usr.name] || 0).toLocaleString()}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* AA BALANCE */}
+      <div style={{ margin: '0 16px 12px', background: t.card, borderRadius: t.rCard, padding: '16px', boxShadow: t.id === 'candy' ? '0 4px 20px rgba(255,78,40,0.08)' : '0 2px 10px rgba(60,30,10,0.06)', border: t.id === 'journal' ? `1px dashed ${t.soft}` : 'none' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+          <span style={{ fontSize: 13, fontWeight: 700, color: t.text }}>⚖️ AA 结算</span>
+          {nonAaCount > 0 && (
+            <span style={{ fontSize: 11, color: t.muted, background: t.bg, padding: '2px 8px', borderRadius: 8 }}>
+              已排除 {nonAaCount} 项共同花费
+            </span>
+          )}
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          {[0, 1].map(i => (
+            <div key={i} style={{ textAlign: 'center', flex: 1 }}>
+              <div style={{ width: 44, height: 44, borderRadius: 22, background: u[i].color, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 800, fontSize: 15, margin: '0 auto 4px' }}>{u[i].initial}</div>
+              <div style={{ fontSize: 12, color: t.text, fontWeight: 600 }}>{u[i].name}</div>
+              <div style={{ fontSize: 11, color: t.muted }}>AA付 ¥{(aaPaid[u[i].name]||0).toLocaleString()}</div>
+            </div>
+          ))}
+        </div>
+        {aaTotal > 0 ? (
+          Math.abs(diff) < 1 ? (
+            <div style={{ marginTop: 12, textAlign: 'center', color: '#4AAE78', fontSize: 13, fontWeight: 700 }}>✓ AA 已结清</div>
+          ) : (
+            <div style={{ marginTop: 12, background: `${t.primary}10`, borderRadius: t.r, padding: '10px 14px', textAlign: 'center', border: `1px solid ${t.primary}20` }}>
+              <span style={{ fontSize: 13, color: t.text }}>
+                <b style={{ color: diff < 0 ? u[0].color : u[1].color }}>{diff < 0 ? u[0].name : u[1].name}</b>
+                {' 应付 '}<b style={{ color: t.primary, fontSize: 16 }}>¥{Math.round(Math.abs(diff)).toLocaleString()}</b>{' 给 '}
+                <b style={{ color: diff < 0 ? u[1].color : u[0].color }}>{diff < 0 ? u[1].name : u[0].name}</b>
+              </span>
+            </div>
+          )
+        ) : (
+          <div style={{ marginTop: 12, textAlign: 'center', color: t.muted, fontSize: 12 }}>暂无需要 AA 的支出</div>
+        )}
+      </div>
+
+      {/* EXPENSE LIST */}
+      <div style={{ padding: '0 16px' }}>
+        <div style={{ fontSize: 13, fontWeight: 700, color: t.text, marginBottom: 8, fontFamily: t.headFont }}>支出明细</div>
+        {expenses.map((e, i) => {
+          const cfg = CAT_CFG[e.cat] || { e: '📌', c: '#888', bg: '#eee' };
+          const isAA = aaFlags[i];
+          return (
+            <div key={i} style={{
+              display: 'flex', alignItems: 'center', gap: 10,
+              background: t.card, borderRadius: t.rCard, padding: '11px 12px', marginBottom: 8,
+              boxShadow: t.id === 'candy' ? '0 2px 12px rgba(255,78,40,0.06)' : '0 2px 8px rgba(60,30,10,0.05)',
+              border: t.id === 'journal' ? `1px dashed ${t.soft}` : 'none',
+              opacity: isAA ? 1 : 0.75,
+            }}>
+              <div style={{ width: 36, height: 36, borderRadius: t.r === 12 ? 10 : 18, background: cfg.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 17, flexShrink: 0 }}>{cfg.e}</div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 13, fontWeight: 600, color: t.text, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{e.name}</div>
+                <div style={{ fontSize: 11, color: t.muted }}>{e.by} · {e.date}</div>
+              </div>
+              <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                <div style={{ fontSize: 15, fontWeight: 800, color: t.text }}>¥{e.amount.toLocaleString()}</div>
+              </div>
+              {/* AA toggle */}
+              <button
+                onClick={() => setAaFlags(f => ({ ...f, [i]: !f[i] }))}
+                style={{
+                  flexShrink: 0, padding: '4px 9px', borderRadius: 20, cursor: 'pointer',
+                  border: isAA ? 'none' : `1px solid ${t.soft}`,
+                  background: isAA ? t.primary : 'transparent',
+                  color: isAA ? '#fff' : t.muted,
+                  fontSize: 11, fontWeight: 700, transition: 'all 0.2s',
+                  lineHeight: 1.4,
+                }}
+              >{isAA ? 'AA' : '不AA'}</button>
+            </div>
+          );
+        })}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '10px', borderRadius: t.rCard, border: `1.5px dashed ${t.soft}`, color: t.muted, fontSize: 13, fontWeight: 600, gap: 4, cursor: 'pointer' }}>
+          + 记一笔
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── PACKING SCREEN ──────────────────────────────────────────
+function PackingScreen({ t }) {
+  const [checked, setChecked] = useState(() => {
+    const c = {};
+    Object.entries(TRIP.packing).forEach(([cat, items]) =>
+      items.forEach((item, i) => { c[`${cat}-${i}`] = item.done; })
+    );
+    return c;
+  });
+  const allItems = Object.values(TRIP.packing).flat();
+  const total = allItems.length;
+  const done = Object.values(checked).filter(Boolean).length;
+  const pct = done / total;
+  const circ = 2 * Math.PI * 30;
+
+  return (
+    <div style={{ background: t.bg, minHeight: '100%', paddingBottom: 80 }}>
+      <div style={{ padding: '62px 16px 14px' }}>
+        <div style={{ fontSize: 20, fontWeight: 800, color: t.text, fontFamily: t.headFont }}>打包清单</div>
+      </div>
+
+      {/* PROGRESS */}
+      <div style={{ margin: '0 16px 14px', background: t.card, borderRadius: t.rCard, padding: '18px 16px', display: 'flex', alignItems: 'center', gap: 18, boxShadow: t.id === 'candy' ? '0 4px 20px rgba(255,78,40,0.08)' : '0 2px 10px rgba(60,30,10,0.06)', border: t.id === 'journal' ? `1px dashed ${t.soft}` : 'none' }}>
+        <svg width={72} height={72} viewBox="0 0 72 72" style={{ flexShrink: 0 }}>
+          <circle cx={36} cy={36} r={30} fill="none" stroke={t.soft} strokeWidth={7}/>
+          <circle cx={36} cy={36} r={30} fill="none" stroke={t.primary} strokeWidth={7}
+            strokeDasharray={`${circ * pct} ${circ}`}
+            strokeLinecap="round" transform="rotate(-90 36 36)"
+            style={{ transition: 'stroke-dasharray 0.4s ease' }}/>
+          <text x={36} y={41} textAnchor="middle" fontSize={15} fontWeight={800} fill={t.text}>{Math.round(pct*100)}%</text>
+        </svg>
+        <div>
+          <div style={{ fontSize: 20, fontWeight: 900, color: t.text, fontFamily: t.headFont }}>{done}/{total} 已打包</div>
+          <div style={{ fontSize: 12, color: t.muted, marginTop: 4 }}>
+            {total - done > 0 ? `还有 ${total - done} 项待完成` : '🎉 全部打包完成！'}
+          </div>
+          {t.id === 'journal' && (
+            <div style={{ fontSize: 10, color: t.accent, fontWeight: 600, marginTop: 6, fontFamily: "'Georgia',serif" }}>
+              出发前记得检查护照！
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* CATEGORIES */}
+      <div style={{ padding: '0 16px' }}>
+        {Object.entries(TRIP.packing).map(([cat, items]) => (
+          <div key={cat} style={{ marginBottom: 12 }}>
+            <div style={{ fontSize: 12, fontWeight: 700, color: t.muted, marginBottom: 6, paddingLeft: 2, letterSpacing: 0.5 }}>{cat}</div>
+            <div style={{ background: t.card, borderRadius: t.rCard, overflow: 'hidden', boxShadow: t.id === 'candy' ? '0 3px 14px rgba(255,78,40,0.06)' : '0 2px 8px rgba(60,30,10,0.04)', border: t.id === 'journal' ? `1px dashed ${t.soft}` : 'none' }}>
+              {items.map((item, i) => {
+                const key = `${cat}-${i}`;
+                const isDone = checked[key];
+                return (
+                  <div key={i} onClick={() => setChecked(p => ({ ...p, [key]: !p[key] }))} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '11px 14px', borderBottom: i < items.length - 1 ? `1px solid ${t.id === 'journal' ? t.soft : '#F5EDE4'}` : 'none', cursor: 'pointer' }}>
+                    <div style={{ width: 22, height: 22, borderRadius: t.r === 12 ? 6 : 11, border: isDone ? 'none' : `2px solid ${t.soft}`, background: isDone ? t.primary : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, transition: 'all 0.2s' }}>
+                      {isDone && <svg width="11" height="9" viewBox="0 0 11 9"><path d="M1 4l3 3 6-6" stroke="#fff" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round"/></svg>}
+                    </div>
+                    <span style={{ fontSize: 14, color: isDone ? t.muted : t.text, textDecoration: isDone ? 'line-through' : 'none', transition: 'all 0.2s', flex: 1 }}>{item.name}</span>
+                    {isDone && <span style={{ fontSize: 10, color: t.primary }}>✓</span>}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ─── NOTES SCREEN ────────────────────────────────────────────
+function NotesScreen({ t }) {
+  const u = TRIP.users;
+  return (
+    <div style={{ background: t.bg, height: '100%', display: 'flex', flexDirection: 'column' }}>
+      <div style={{ padding: '62px 16px 10px' }}>
+        <div style={{ fontSize: 20, fontWeight: 800, color: t.text, fontFamily: t.headFont }}>旅行备注</div>
+      </div>
+
+      {/* PINNED */}
+      <div style={{ margin: '0 16px 10px', background: `${t.accent}15`, borderRadius: t.rCard, padding: '10px 14px', border: `1px solid ${t.accent}40` }}>
+        <div style={{ fontSize: 11, color: t.accent, fontWeight: 700, marginBottom: 3 }}>📌 置顶提醒</div>
+        <div style={{ fontSize: 13, color: t.text }}>居酒屋预约 · 5月21日 19:00 · 2位 ✓</div>
+      </div>
+
+      {/* MESSAGES */}
+      <div style={{ flex: 1, overflowY: 'auto', padding: '0 16px', display: 'flex', flexDirection: 'column', gap: 12, paddingBottom: 10 }}>
+        {TRIP.notes.map(note => (
+          <div key={note.id} style={{ display: 'flex', flexDirection: note.me ? 'row-reverse' : 'row', alignItems: 'flex-end', gap: 8 }}>
+            {!note.me && (
+              <div style={{ width: 30, height: 30, borderRadius: 15, background: u[0].color, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: 11, fontWeight: 700, flexShrink: 0 }}>{u[0].initial}</div>
+            )}
+            <div style={{ maxWidth: '74%' }}>
+              {!note.me && <div style={{ fontSize: 10, color: t.muted, marginBottom: 3, paddingLeft: 2 }}>{note.from}</div>}
+              <div style={{
+                background: note.me ? t.grad : t.card,
+                color: note.me ? '#fff' : t.text,
+                borderRadius: t.id === 'candy'
+                  ? (note.me ? '20px 4px 20px 20px' : '4px 20px 20px 20px')
+                  : (note.me ? '14px 4px 14px 14px' : '4px 14px 14px 14px'),
+                padding: '10px 14px', fontSize: 14, lineHeight: 1.5,
+                boxShadow: note.me ? `0 4px 16px ${t.primary}30` : (t.id === 'candy' ? '0 2px 10px rgba(0,0,0,0.06)' : '0 2px 8px rgba(60,30,10,0.06)'),
+                border: (!note.me && t.id === 'journal') ? `1px dashed ${t.soft}` : 'none',
+              }}>{note.text}</div>
+              <div style={{ fontSize: 10, color: t.muted, marginTop: 3, textAlign: note.me ? 'right' : 'left' }}>{note.time}</div>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* INPUT */}
+      <div style={{ background: t.tabBg, borderTop: `1px solid ${t.tabBorder}`, padding: '10px 16px 20px', display: 'flex', gap: 10, alignItems: 'center' }}>
+        <div style={{ flex: 1, background: t.id === 'candy' ? '#F8F2EE' : '#F5EAD4', borderRadius: t.r === 12 ? 10 : 22, padding: '10px 14px', fontSize: 14, color: t.muted, border: t.id === 'journal' ? `1px dashed ${t.soft}` : 'none' }}>
+          写点什么…
+        </div>
+        <div style={{ width: 38, height: 38, borderRadius: 19, background: t.grad, display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: `0 4px 12px ${t.primary}40`, flexShrink: 0 }}>
+          <svg width="14" height="14" viewBox="0 0 14 14"><path d="M7 12V2M2 7l5-5 5 5" stroke="#fff" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round"/></svg>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── BOTTOM NAV ──────────────────────────────────────────────
+const NAV = [
+  { id: 'home', label: '首页', icon: (a,c) => <svg width="22" height="22" viewBox="0 0 22 22"><path d="M3 10L11 3l8 7v9a1 1 0 01-1 1H14v-5H8v5H4a1 1 0 01-1-1z" fill={a?c:'none'} stroke={c} strokeWidth="1.7" strokeLinejoin="round"/></svg> },
+  { id: 'itinerary', label: '行程', icon: (a,c) => <svg width="22" height="22" viewBox="0 0 22 22"><rect x="3" y="4" width="16" height="15" rx="2.5" fill={a?c:'none'} stroke={c} strokeWidth="1.7"/><path d="M7 2v4M15 2v4M3 9h16" stroke={c} strokeWidth="1.7" strokeLinecap="round"/>{a&&<circle cx="11" cy="14" r="2" fill="#fff"/>}</svg> },
+  { id: 'expense', label: '账单', icon: (a,c) => <svg width="22" height="22" viewBox="0 0 22 22"><rect x="2" y="5" width="18" height="13" rx="2.5" fill={a?c:'none'} stroke={c} strokeWidth="1.7"/><circle cx="11" cy="11.5" r="2.5" fill={a?'#fff':c} stroke={a?'none':c} strokeWidth={a?0:0}/><path d="M6 9h4M12 9h4M6 14h3M13 14h3" stroke={a?'#fff':c} strokeWidth="1.3" strokeLinecap="round"/></svg> },
+  { id: 'packing', label: '清单', icon: (a,c) => <svg width="22" height="22" viewBox="0 0 22 22"><rect x="4" y="2" width="14" height="18" rx="2" fill={a?c:'none'} stroke={c} strokeWidth="1.7"/><path d="M8 7h6M8 11h6M8 15h4" stroke={a?'#fff':c} strokeWidth="1.5" strokeLinecap="round"/></svg> },
+  { id: 'notes', label: '备注', icon: (a,c) => <svg width="22" height="22" viewBox="0 0 22 22"><path d="M18 13.5A2.5 2.5 0 0115.5 16H7l-4 4V5a2 2 0 012-2h10.5A2.5 2.5 0 0118 5.5z" fill={a?c:'none'} stroke={c} strokeWidth="1.7" strokeLinejoin="round"/></svg> },
+];
+
+function BottomNav({ active, onChange, t }) {
+  return (
+    <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, background: t.tabBg, borderTop: `1px solid ${t.tabBorder}`, display: 'flex', paddingBottom: 22, paddingTop: 8, zIndex: 20, backdropFilter: 'blur(12px)' }}>
+      {NAV.map(item => {
+        const isActive = active === item.id;
+        const color = isActive ? t.primary : t.muted;
+        return (
+          <button key={item.id} onClick={() => onChange(item.id)} style={{ flex: 1, border: 'none', background: 'transparent', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3, cursor: 'pointer', padding: '4px 0' }}>
+            {item.icon(isActive, color)}
+            <span style={{ fontSize: 10, color, fontWeight: isActive ? 700 : 400 }}>{item.label}</span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+// ─── MINI APP ────────────────────────────────────────────────
+function MiniApp({ themeId }) {
+  const t = THEMES[themeId];
+  const [screen, setScreen] = useState('home');
+  const screens = {
+    home: <HomeScreen t={t}/>,
+    itinerary: <ItineraryScreen t={t}/>,
+    expense: <ExpenseScreen t={t}/>,
+    packing: <PackingScreen t={t}/>,
+    notes: <NotesScreen t={t}/>,
+  };
+  return (
+    <IOSDevice width={375} height={812} dark={false}>
+      <div style={{ height: '100%', position: 'relative', background: t.bg, overflow: 'hidden', fontFamily: t.bodyFont }}>
+        <div style={{ height: 'calc(100% - 76px)', overflowY: 'auto', overflowX: 'hidden' }}>
+          {screens[screen]}
+        </div>
+        <BottomNav active={screen} onChange={setScreen} t={t}/>
+      </div>
+    </IOSDevice>
+  );
+}
+
+// ─── TWEAKS ──────────────────────────────────────────────────
+function TweaksPanel({ visible }) {
+  return (
+    <div className={`tweaks-panel${visible ? ' visible' : ''}`}>
+      <div className="tweaks-title">Tweaks</div>
+      <div className="tweak-row">
+        <div className="tweak-label">关于这两个方案</div>
+        <div style={{ fontSize: 12, color: '#9A7050', lineHeight: 1.6 }}>
+          <b>A 手账风</b> — 牛皮纸质感、衬线标题、虚线卡片边框、复古印章装饰<br/>
+          <b>B 糖果风</b> — 明亮珊瑚渐变、大圆角、玻璃感、现代简洁
+        </div>
+      </div>
+      <div className="tweak-row">
+        <div className="tweak-label">可延伸的下一步功能</div>
+        <div style={{ fontSize: 11, color: '#9A7050', lineHeight: 1.7 }}>
+          共同日记 · 愿望清单 · 周年纪念 · 实时位置共享 · 相册墙
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── ROOT ────────────────────────────────────────────────────
+function Root() {
+  const [tweaksOn, setTweaksOn] = useState(false);
+
+  useEffect(() => {
+    window.addEventListener('message', e => {
+      if (e.data?.type === '__activate_edit_mode') setTweaksOn(true);
+      if (e.data?.type === '__deactivate_edit_mode') setTweaksOn(false);
+    });
+    window.parent.postMessage({ type: '__edit_mode_available' }, '*');
+  }, []);
+
+  return (
+    <>
+      <div className="canvas-title">去哇 · 情侣旅行计划 — 风格方案对比</div>
+      <div className="canvas">
+        <div className="phone-col">
+          <div className="style-label">A &nbsp;·&nbsp; 手账风</div>
+          <MiniApp themeId="journal"/>
+        </div>
+        <div className="phone-col">
+          <div className="style-label">B &nbsp;·&nbsp; 糖果风</div>
+          <MiniApp themeId="candy"/>
+        </div>
+      </div>
+      <TweaksPanel visible={tweaksOn}/>
+    </>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<Root/>);
+</script>
+<div id="root"></div>
+</body>
+</html>

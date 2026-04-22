@@ -1,0 +1,41 @@
+{
+  "pages": [
+    {
+      "path": "pages/home/index",
+      "style": {
+        "navigationBarTitleText": "quwa"
+      }
+    },
+    {
+      "path": "pages/itinerary/index",
+      "style": {
+        "navigationBarTitleText": "quwa"
+      }
+    },
+    {
+      "path": "pages/expense/index",
+      "style": {
+        "navigationBarTitleText": "quwa"
+      }
+    },
+    {
+      "path": "pages/notes/index",
+      "style": {
+        "navigationBarTitleText": "quwa"
+      }
+    },
+    {
+      "path": "pages/checklist/index",
+      "style": {
+        "navigationBarTitleText": "quwa"
+      }
+    }
+  ],
+  "globalStyle": {
+    "navigationStyle": "custom",
+    "navigationBarTextStyle": "black",
+    "navigationBarTitleText": "quwa",
+    "navigationBarBackgroundColor": "#F3E9D8",
+    "backgroundColor": "#F3E9D8"
+  }
+}
