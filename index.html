@@ -1,20 +1,873 @@
 <!DOCTYPE html>
-<html>
-  <head>
-    <meta charset="UTF-8" />
-    <script>
-      var coverSupport = 'CSS' in window && typeof CSS.supports === 'function' && (CSS.supports('top: env(a)') ||
-        CSS.supports('top: constant(a)'))
-      document.write(
-        '<meta name="viewport" content="width=device-width, user-scalable=no, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0' +
-        (coverSupport ? ', viewport-fit=cover' : '') + '" />')
-    </script>
-    <title></title>
-    <!--preload-links-->
-    <!--app-context-->
-  </head>
-  <body>
-    <div id="app"><!--app-html--></div>
-    <script type="module" src="/src/main.ts"></script>
-  </body>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="theme-color" content="#C96040">
+<title>去哇 · 旅行计划</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body,#root{height:100%;width:100%;overflow:hidden}
+body{font-family:'PingFang SC','Helvetica Neue',sans-serif;-webkit-font-smoothing:antialiased;background:#F3E9D8}
+input,button,textarea{font-family:inherit;-webkit-appearance:none}
+button{cursor:pointer;border:none;outline:none;background:none}
+::-webkit-scrollbar{display:none}
+
+.app{height:100%;display:flex;flex-direction:column;background:#F3E9D8}
+.screen{flex:1;min-height:0;overflow-y:auto;overflow-x:hidden;-webkit-overflow-scrolling:touch;padding-bottom:80px}
+
+.nav{position:fixed;bottom:0;left:0;right:0;z-index:50;background:#FBF2E0;border-top:1px solid #E4CFA6;display:flex;padding-bottom:env(safe-area-inset-bottom,0px);padding-top:8px}
+.nav-btn{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;padding:4px 0;color:#9A7050;font-size:10px}
+.nav-btn.active{color:#C96040;font-weight:700}
+
+.card{background:#FEF8EE;border-radius:14px;border:1px dashed #E8D4B4;box-shadow:0 2px 10px rgba(60,30,10,.06)}
+.p{padding:14px 16px}
+
+.overlay{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:100;display:flex;align-items:flex-end}
+.sheet{background:#FEF8EE;border-radius:20px 20px 0 0;padding:20px 20px calc(24px + env(safe-area-inset-bottom,0px));width:100%;max-height:90vh;overflow-y:auto}
+.handle{width:36px;height:4px;border-radius:2px;background:#E8D4B4;margin:0 auto 18px}
+
+.inp{width:100%;background:#F3E9D8;border:1px dashed #E8D4B4;border-radius:10px;padding:10px 12px;font-size:15px;color:#3A2218;outline:none}
+.inp::placeholder{color:#C0A080}
+.label{font-size:11px;color:#9A7050;font-weight:600;margin-bottom:5px}
+
+.hero{background:linear-gradient(155deg,#B85438 0%,#C96040 45%,#E09850 100%);padding:env(safe-area-inset-top,44px) 20px 0;position:relative}
+.serif{font-family:'Georgia','Palatino',serif}
+
+.empty{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;padding:48px 24px;color:#C0A080;text-align:center}
+.empty-icon{font-size:40px;opacity:.5}
+.btn-primary{padding:14px;border-radius:12px;background:linear-gradient(140deg,#C96040,#E8A050);color:#fff;font-size:15px;font-weight:700;width:100%;box-shadow:0 4px 14px rgba(201,96,64,.3)}
+.btn-ghost{padding:12px;border-radius:12px;border:1px dashed #E8D4B4;color:#9A7050;font-size:14px;font-weight:600;width:100%}
+
+.type-btn{flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;padding:10px 4px;border-radius:10px;border:1.5px solid #E8D4B4;background:#FEF8EE;font-size:10px;color:#9A7050;transition:all .15s}
+.type-btn.sel{border-color:#C96040;background:rgba(201,96,64,.08);color:#C96040;font-weight:700}
+</style>
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+const { useState, useEffect, useRef, useCallback } = React;
+
+function useLS(key, init) {
+  const [val, setVal] = useState(() => {
+    try { const s = localStorage.getItem(key); return s ? JSON.parse(s) : (typeof init === 'function' ? init() : init); }
+    catch { return typeof init === 'function' ? init() : init; }
+  });
+  const set = useCallback(v => setVal(prev => {
+    const next = typeof v === 'function' ? v(prev) : v;
+    try { localStorage.setItem(key, JSON.stringify(next)); } catch {}
+    return next;
+  }), [key]);
+  return [val, set];
+}
+
+// ── config ────────────────────────────────────────────────────
+const TYPE_CFG = {
+  flight: { e: '✈️', c: '#5B8ED4', label: '飞机' },
+  train:  { e: '🚄', c: '#4A9BE0', label: '高铁' },
+  food:   { e: '🍜', c: '#E8934A', label: '餐饮' },
+  sight:  { e: '🏯', c: '#4AAE78', label: '景点' },
+  hotel:  { e: '🏨', c: '#B07AE0', label: '住宿' },
+  shop:   { e: '🛍️', c: '#D4B44A', label: '购物' },
+};
+const CAT_CFG = {
+  '交通': { e: '✈️', c: '#4A84C4', bg: '#EBF2FE' },
+  '住宿': { e: '🏨', c: '#A07AD4', bg: '#F4EFFE' },
+  '餐饮': { e: '🍜', c: '#D4784A', bg: '#FEF0E8' },
+  '景点': { e: '🎫', c: '#4AAE78', bg: '#EAF8F0' },
+  '购物': { e: '🛍️', c: '#B4944A', bg: '#FEF8E8' },
+  '其他': { e: '📌', c: '#888', bg: '#F4F4F4' },
+};
+const PACKING_CATS = ['证件证卡', '衣物', '电子', '药品', '其他'];
+
+// ── shared ────────────────────────────────────────────────────
+function TransportCard({ item }) {
+  const cfg = TYPE_CFG[item.type] || TYPE_CFG.flight;
+  return (
+    <div style={{ borderRadius: 12, overflow: 'hidden', border: `1.5px solid ${cfg.c}35`, boxShadow: `0 3px 14px ${cfg.c}15` }}>
+      <div style={{ background: `${cfg.c}14`, padding: '8px 14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <span className="serif" style={{ fontSize: 13, fontWeight: 800, color: '#3A2218' }}>{item.name}</span>
+        {item.note && <span style={{ fontSize: 10, color: cfg.c, fontWeight: 700, background: `${cfg.c}20`, padding: '2px 8px', borderRadius: 5 }}>{item.note}</span>}
+      </div>
+      <div style={{ background: '#FEF8EE', padding: '12px 14px', display: 'flex', alignItems: 'center', gap: 8 }}>
+        <div style={{ textAlign: 'center', minWidth: 52 }}>
+          <div className="serif" style={{ fontSize: 20, fontWeight: 900, color: '#3A2218', lineHeight: 1 }}>{item.time}</div>
+          <div style={{ fontSize: 9, color: '#9A7050', marginTop: 3, lineHeight: 1.3 }}>{item.from}</div>
+        </div>
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3 }}>
+          <span style={{ fontSize: 15 }}>{cfg.e}</span>
+          <div style={{ width: '100%', position: 'relative', height: 2 }}>
+            <div style={{ position: 'absolute', inset: 0, borderTop: `2px dashed ${cfg.c}50` }} />
+            <div style={{ position: 'absolute', right: 0, top: -3, width: 6, height: 6, borderRadius: 3, background: cfg.c }} />
+            <div style={{ position: 'absolute', left: 0, top: -3, width: 6, height: 6, borderRadius: 3, background: cfg.c }} />
+          </div>
+        </div>
+        <div style={{ textAlign: 'center', minWidth: 52 }}>
+          <div className="serif" style={{ fontSize: 20, fontWeight: 900, color: '#3A2218', lineHeight: 1 }}>{item.timeEnd}</div>
+          <div style={{ fontSize: 9, color: '#9A7050', marginTop: 3, lineHeight: 1.3 }}>{item.to}</div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── ONBOARDING ────────────────────────────────────────────────
+function Onboarding({ onCreate }) {
+  const [form, setForm] = useState({ name: '', city: '', dateStart: '', dateEnd: '', user1: '', user2: '', budget: '' });
+  const set = (k, v) => setForm(p => ({ ...p, [k]: v }));
+  const valid = form.name && form.user1 && form.user2;
+
+  return (
+    <div style={{ height: '100%', overflowY: 'auto', background: '#F3E9D8', display: 'flex', flexDirection: 'column' }}>
+      {/* header */}
+      <div style={{ background: 'linear-gradient(155deg,#B85438,#C96040 45%,#E09850)', padding: 'calc(env(safe-area-inset-top,44px) + 20px) 24px 36px', textAlign: 'center' }}>
+        <div style={{ fontSize: 11, letterSpacing: 3, color: 'rgba(255,255,255,.6)', fontWeight: 600, marginBottom: 8 }}>TRAVEL TOGETHER</div>
+        <div className="serif" style={{ fontSize: 42, fontWeight: 900, color: '#fff', lineHeight: 1 }}>去哇</div>
+        <div style={{ fontSize: 13, color: 'rgba(255,255,255,.75)', marginTop: 8 }}>为你们的旅行创建专属计划</div>
+      </div>
+
+      <div style={{ padding: '28px 20px calc(40px + env(safe-area-inset-bottom,0px))', display: 'flex', flexDirection: 'column', gap: 16 }}>
+        <div className="card p">
+          <div className="serif" style={{ fontSize: 15, fontWeight: 800, color: '#3A2218', marginBottom: 16 }}>✈️ 旅行信息</div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <div>
+              <div className="label">行程名称 *</div>
+              <input className="inp" placeholder="例：大阪·京都 6日游" value={form.name} onChange={e => set('name', e.target.value)} />
+            </div>
+            <div>
+              <div className="label">目的地 / 城市</div>
+              <input className="inp" placeholder="例：大阪、东京、巴黎…" value={form.city} onChange={e => set('city', e.target.value)} />
+            </div>
+            <div style={{ display: 'flex', gap: 10 }}>
+              <div style={{ flex: 1 }}>
+                <div className="label">出发日期</div>
+                <input className="inp" type="date" value={form.dateStart} onChange={e => set('dateStart', e.target.value)} style={{ fontSize: 14 }} />
+              </div>
+              <div style={{ flex: 1 }}>
+                <div className="label">返程日期</div>
+                <input className="inp" type="date" value={form.dateEnd} onChange={e => set('dateEnd', e.target.value)} style={{ fontSize: 14 }} />
+              </div>
+            </div>
+            <div>
+              <div className="label">总预算 (¥)</div>
+              <input className="inp" type="number" placeholder="例：12000" value={form.budget} onChange={e => set('budget', e.target.value)} />
+            </div>
+          </div>
+        </div>
+
+        <div className="card p">
+          <div className="serif" style={{ fontSize: 15, fontWeight: 800, color: '#3A2218', marginBottom: 16 }}>👫 旅行伙伴</div>
+          <div style={{ display: 'flex', gap: 10 }}>
+            <div style={{ flex: 1 }}>
+              <div className="label">你的名字 *</div>
+              <input className="inp" placeholder="名字或昵称" value={form.user1} onChange={e => set('user1', e.target.value)} />
+            </div>
+            <div style={{ flex: 1 }}>
+              <div className="label">Ta 的名字 *</div>
+              <input className="inp" placeholder="名字或昵称" value={form.user2} onChange={e => set('user2', e.target.value)} />
+            </div>
+          </div>
+        </div>
+
+        <button disabled={!valid} onClick={() => onCreate(form)} className="btn-primary"
+          style={{ opacity: valid ? 1 : 0.5 }}>
+          出发！创建旅行计划 →
+        </button>
+        <div style={{ textAlign: 'center', fontSize: 11, color: '#C0A080' }}>所有数据保存在本机，随时可用</div>
+      </div>
+    </div>
+  );
+}
+
+// ── HOME ──────────────────────────────────────────────────────
+function HomeScreen({ trip, expenses, budget, onTab }) {
+  const spent = expenses.reduce((s, e) => s + e.amount, 0);
+  const pct = Math.min(spent / (budget || 1), 1);
+  const u = trip.users;
+  const daysLeft = trip.dateStart ? Math.max(0, Math.ceil((new Date(trip.dateStart) - new Date()) / 86400000)) : null;
+  const totalDays = (trip.dateStart && trip.dateEnd) ? Math.ceil((new Date(trip.dateEnd) - new Date(trip.dateStart)) / 86400000) + 1 : null;
+
+  return (
+    <div className="screen">
+      <div className="hero">
+        <div style={{ position: 'absolute', top: 18, right: 20, width: 36, height: 46, border: '2px solid rgba(255,255,255,.28)', borderRadius: 3, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 1 }}>
+          <span style={{ fontSize: 14 }}>✈️</span>
+          <span style={{ fontSize: 7, color: 'rgba(255,255,255,.55)', letterSpacing: 1, fontWeight: 700 }}>GO!</span>
+        </div>
+        <div style={{ paddingTop: 16 }}>
+          <div style={{ display: 'flex', gap: 5, marginBottom: 6 }}>
+            {['TRAVEL','PLAN'].map(w => <span key={w} style={{ fontSize: 9, fontWeight: 700, letterSpacing: 2, color: 'rgba(255,255,255,.45)', border: '1px solid rgba(255,255,255,.22)', padding: '2px 5px', borderRadius: 3 }}>{w}</span>)}
+          </div>
+          <div className="serif" style={{ fontSize: trip.city ? 48 : 34, fontWeight: 900, color: '#fff', lineHeight: .95 }}>
+            {trip.city || trip.name}
+          </div>
+          {trip.dateStart && <div style={{ color: 'rgba(255,255,255,.8)', fontSize: 13, marginTop: 6 }}>
+            {trip.dateStart.replace(/-/g,'/')} — {trip.dateEnd.replace(/-/g,'/')}
+          </div>}
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 16, paddingBottom: 24 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            {u.map((usr, i) => (
+              <div key={i} style={{ width: 34, height: 34, borderRadius: 17, background: usr.color, border: '2px solid rgba(255,255,255,.8)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: 12, fontWeight: 700, marginLeft: i > 0 ? -8 : 0, zIndex: i === 0 ? 2 : 1 }}>{usr.initial}</div>
+            ))}
+            <span style={{ color: 'rgba(255,255,255,.85)', fontSize: 12, marginLeft: 6 }}>{u.map(x => x.name).join(' & ')}</span>
+          </div>
+          {daysLeft !== null && (
+            <div style={{ background: 'rgba(255,255,255,.18)', borderRadius: 10, padding: '8px 14px', border: '1px solid rgba(255,255,255,.18)', textAlign: 'center' }}>
+              <div className="serif" style={{ color: '#fff', fontSize: 26, fontWeight: 900, lineHeight: 1 }}>{daysLeft}</div>
+              <div style={{ color: 'rgba(255,255,255,.7)', fontSize: 10, marginTop: 1 }}>{daysLeft === 0 ? '出发啦！' : '天后出发'}</div>
+            </div>
+          )}
+        </div>
+        <svg viewBox="0 0 390 24" preserveAspectRatio="none" style={{ display: 'block', width: 'calc(100% + 40px)', height: 24, margin: '0 -20px' }}>
+          <path d="M0 0 Q9.75 24 19.5 0 Q29.25 24 39 0 Q48.75 24 58.5 0 Q68.25 24 78 0 Q87.75 24 97.5 0 Q107.25 24 117 0 Q126.75 24 136.5 0 Q146.25 24 156 0 Q165.75 24 175.5 0 Q185.25 24 195 0 Q204.75 24 214.5 0 Q224.25 24 234 0 Q243.75 24 253.5 0 Q263.25 24 273 0 Q282.75 24 292.5 0 Q302.25 24 312 0 Q321.75 24 331.5 0 Q341.25 24 351 0 Q360.75 24 370.5 0 Q380.25 24 390 0 L390 24 L0 24Z" fill="#F3E9D8"/>
+        </svg>
+      </div>
+
+      {/* stats */}
+      <div style={{ display: 'flex', gap: 10, padding: '14px 16px 0' }}>
+        {[
+          { label: '行程天数', val: totalDays ? `${totalDays}天` : '—' },
+          { label: '总预算', val: budget ? `¥${(budget/1000).toFixed(0)}K` : '未设置' },
+          { label: '已记支出', val: spent > 0 ? `¥${(spent/1000).toFixed(1)}K` : '¥0' },
+        ].map((s, i) => (
+          <div key={i} className="card" style={{ flex: 1, padding: '12px 8px', textAlign: 'center' }}>
+            <div className="serif" style={{ fontSize: 20, fontWeight: 900, color: '#3A2218', lineHeight: 1 }}>{s.val}</div>
+            <div style={{ fontSize: 10, color: '#9A7050', marginTop: 4 }}>{s.label}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* budget */}
+      {budget > 0 && (
+        <div className="card p" style={{ margin: '12px 16px 0' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8, alignItems: 'center' }}>
+            <span style={{ fontSize: 13, fontWeight: 700, color: '#3A2218' }}>💰 预算进度</span>
+            <span style={{ fontSize: 11, color: '#9A7050' }}>¥{spent.toLocaleString()} / ¥{budget.toLocaleString()}</span>
+          </div>
+          <div style={{ background: '#E8D4B4', borderRadius: 100, height: 8, overflow: 'hidden' }}>
+            <div style={{ width: `${pct * 100}%`, height: '100%', background: 'linear-gradient(140deg,#C96040,#E8A050)', borderRadius: 100, transition: 'width .4s' }} />
+          </div>
+          <div style={{ fontSize: 11, color: '#9A7050', marginTop: 6 }}>
+            {spent > budget ? `⚠️ 超出预算 ¥${(spent - budget).toLocaleString()}` : `剩余 ¥${(budget - spent).toLocaleString()} · ${Math.round(pct * 100)}% 已使用`}
+          </div>
+        </div>
+      )}
+
+      {/* quick entry */}
+      <div style={{ padding: '14px 16px 0', display: 'flex', gap: 10 }}>
+        <button onClick={() => onTab('itinerary')} className="card" style={{ flex: 1, padding: '16px 12px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, border: 'none', cursor: 'pointer' }}>
+          <span style={{ fontSize: 24 }}>📅</span>
+          <span style={{ fontSize: 12, fontWeight: 700, color: '#3A2218' }}>添加行程</span>
+        </button>
+        <button onClick={() => onTab('expense')} className="card" style={{ flex: 1, padding: '16px 12px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, border: 'none', cursor: 'pointer' }}>
+          <span style={{ fontSize: 24 }}>💰</span>
+          <span style={{ fontSize: 12, fontWeight: 700, color: '#3A2218' }}>记一笔</span>
+        </button>
+        <button onClick={() => onTab('packing')} className="card" style={{ flex: 1, padding: '16px 12px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, border: 'none', cursor: 'pointer' }}>
+          <span style={{ fontSize: 24 }}>🧳</span>
+          <span style={{ fontSize: 12, fontWeight: 700, color: '#3A2218' }}>打包清单</span>
+        </button>
+      </div>
+
+      {expenses.length === 0 && (
+        <div className="empty" style={{ padding: '32px 24px 0' }}>
+          <div className="empty-icon">🗺️</div>
+          <div style={{ fontSize: 14, fontWeight: 600, color: '#9A7050' }}>开始规划你们的旅行吧</div>
+          <div style={{ fontSize: 12, color: '#C0A080' }}>添加行程、记录花费、准备打包清单</div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── ITINERARY ─────────────────────────────────────────────────
+const EMPTY_ITEM = { type: 'sight', name: '', time: '', timeEnd: '', from: '', to: '', note: '', isTransport: false };
+
+function ItineraryScreen({ days, setDays }) {
+  const [active, setActive] = useState(0);
+  const [adding, setAdding] = useState(false);
+  const [editItem, setEditItem] = useState(null);
+  const [form, setForm] = useState(EMPTY_ITEM);
+  const timerRef = useRef(null);
+
+  const isTransport = (t) => t === 'flight' || t === 'train';
+  const setF = (k, v) => setForm(p => ({ ...p, [k]: v, isTransport: k === 'type' ? isTransport(v) : p.isTransport }));
+
+  const openAdd = () => { setForm({ ...EMPTY_ITEM }); setEditing(null); setAdding(true); };
+  const [editing, setEditing] = useState(null); // {di, ii}
+
+  const openEdit = (di, ii) => {
+    setForm({ ...days[di].items[ii] });
+    setEditing({ di, ii });
+    setAdding(true);
+  };
+
+  const save = () => {
+    if (!form.name || !form.time) return;
+    if (editing) {
+      setDays(prev => prev.map((d, dx) => dx !== editing.di ? d : { ...d, items: d.items.map((it, ix) => ix !== editing.ii ? it : { ...form, isTransport: isTransport(form.type) }) }));
+    } else {
+      setDays(prev => prev.map((d, dx) => dx !== active ? d : { ...d, items: [...d.items, { ...form, isTransport: isTransport(form.type) }] }));
+    }
+    setAdding(false); setEditing(null);
+  };
+
+  const del = () => {
+    if (!editing) return;
+    setDays(prev => prev.map((d, dx) => dx !== editing.di ? d : { ...d, items: d.items.filter((_, ix) => ix !== editing.ii) }));
+    setAdding(false); setEditing(null);
+  };
+
+  const startPress = (di, ii) => { timerRef.current = setTimeout(() => openEdit(di, ii), 500); };
+  const endPress = () => clearTimeout(timerRef.current);
+
+  const day = days[active];
+
+  return (
+    <div className="screen" style={{ position: 'relative' }}>
+      {adding && (
+        <div className="overlay" onClick={e => e.target === e.currentTarget && setAdding(false)}>
+          <div className="sheet">
+            <div className="handle" />
+            <div className="serif" style={{ fontSize: 15, fontWeight: 800, color: '#3A2218', marginBottom: 14 }}>{editing ? '编辑行程' : '添加行程'}</div>
+
+            {/* type picker */}
+            <div className="label">类型</div>
+            <div style={{ display: 'flex', gap: 7, marginBottom: 14, flexWrap: 'wrap' }}>
+              {Object.entries(TYPE_CFG).map(([k, v]) => (
+                <button key={k} className={`type-btn${form.type === k ? ' sel' : ''}`} onClick={() => setF('type', k)} style={{ minWidth: 52 }}>
+                  <span style={{ fontSize: 20 }}>{v.e}</span>
+                  <span>{v.label}</span>
+                </button>
+              ))}
+            </div>
+
+            {isTransport(form.type) ? (
+              <>
+                <div style={{ display: 'flex', gap: 10, marginBottom: 10 }}>
+                  <div style={{ flex: 1 }}><div className="label">出发时间 *</div><input className="inp" placeholder="08:30" value={form.time} onChange={e => setF('time', e.target.value)} /></div>
+                  <div style={{ flex: 1 }}><div className="label">到达时间</div><input className="inp" placeholder="10:30" value={form.timeEnd} onChange={e => setF('timeEnd', e.target.value)} /></div>
+                </div>
+                <div style={{ marginBottom: 10 }}><div className="label">航班/车次名称 *</div><input className="inp" placeholder="例：JL789、高铁 G123" value={form.name} onChange={e => setF('name', e.target.value)} /></div>
+                <div style={{ display: 'flex', gap: 10, marginBottom: 10 }}>
+                  <div style={{ flex: 1 }}><div className="label">出发地</div><input className="inp" placeholder="例：上海虹桥" value={form.from} onChange={e => setF('from', e.target.value)} /></div>
+                  <div style={{ flex: 1 }}><div className="label">目的地</div><input className="inp" placeholder="例：北京南" value={form.to} onChange={e => setF('to', e.target.value)} /></div>
+                </div>
+              </>
+            ) : (
+              <>
+                <div style={{ display: 'flex', gap: 10, marginBottom: 10 }}>
+                  <div style={{ flex: 2 }}><div className="label">名称 *</div><input className="inp" placeholder="例：清水寺" value={form.name} onChange={e => setF('name', e.target.value)} /></div>
+                  <div style={{ flex: 1 }}><div className="label">时间 *</div><input className="inp" placeholder="14:00" value={form.time} onChange={e => setF('time', e.target.value)} /></div>
+                </div>
+              </>
+            )}
+            <div style={{ marginBottom: 18 }}><div className="label">备注</div><input className="inp" placeholder="添加备注…" value={form.note} onChange={e => setF('note', e.target.value)} /></div>
+
+            <div style={{ display: 'flex', gap: 10 }}>
+              {editing && <button onClick={del} style={{ padding: '12px 14px', borderRadius: 10, border: '1px solid #F0D0C8', color: '#C04030', fontSize: 13, fontWeight: 600 }}>删除</button>}
+              <button onClick={() => setAdding(false)} className="btn-ghost" style={{ flex: 1 }}>取消</button>
+              <button onClick={save} disabled={!form.name || !form.time} className="btn-primary" style={{ flex: 2, padding: 12, opacity: (!form.name || !form.time) ? .5 : 1 }}>保存</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '52px 16px 10px' }}>
+        <span className="serif" style={{ fontSize: 22, fontWeight: 800, color: '#3A2218' }}>行程安排</span>
+        <button onClick={openAdd} style={{ width: 34, height: 34, borderRadius: 17, background: 'linear-gradient(140deg,#C96040,#E8A050)', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 4px 12px rgba(201,96,64,.35)' }}>
+          <svg width="14" height="14" viewBox="0 0 14 14"><path d="M7 1v12M1 7h12" stroke="#fff" strokeWidth="2.2" strokeLinecap="round"/></svg>
+        </button>
+      </div>
+
+      {/* day tabs */}
+      <div style={{ display: 'flex', gap: 8, padding: '0 16px 12px', overflowX: 'auto' }}>
+        {days.map((d, i) => (
+          <button key={i} onClick={() => setActive(i)} style={{ flexShrink: 0, padding: '8px 16px', borderRadius: 10, background: active === i ? '#C96040' : '#FEF8EE', color: active === i ? '#fff' : '#9A7050', border: active === i ? 'none' : '1px dashed #E8D4B4', boxShadow: active === i ? '0 4px 14px rgba(201,96,64,.3)' : '0 2px 8px rgba(0,0,0,.04)', textAlign: 'center' }}>
+            <div style={{ fontSize: 13, fontWeight: 700 }}>{d.label}</div>
+            <div style={{ fontSize: 10, opacity: .75 }}>{d.date}</div>
+          </button>
+        ))}
+        <button onClick={() => setDays(p => [...p, { label: `Day ${p.length + 1}`, date: '', items: [] }])} style={{ flexShrink: 0, width: 44, height: 56, borderRadius: 10, border: '1.5px dashed #E8D4B4', color: '#9A7050', fontSize: 20, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>+</button>
+      </div>
+
+      {day.items.length === 0 ? (
+        <div className="empty">
+          <div className="empty-icon">🗓️</div>
+          <div style={{ fontSize: 14, fontWeight: 600, color: '#9A7050' }}>还没有安排</div>
+          <div style={{ fontSize: 12, color: '#C0A080' }}>点右上角「+」添加行程</div>
+        </div>
+      ) : (
+        <div style={{ padding: '0 16px' }}>
+          <div style={{ fontSize: 11, color: '#C0A080', marginBottom: 8 }}>长按可编辑</div>
+          {day.items.map((item, i) => {
+            const cfg = TYPE_CFG[item.type] || TYPE_CFG.sight;
+            const isLast = i === day.items.length - 1;
+            return (
+              <div key={i} style={{ display: 'flex', gap: 12 }}
+                onMouseDown={() => startPress(active, i)} onMouseUp={endPress} onMouseLeave={endPress}
+                onTouchStart={() => startPress(active, i)} onTouchEnd={endPress} onTouchCancel={endPress}>
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: 34, flexShrink: 0 }}>
+                  <div style={{ width: 30, height: 30, borderRadius: 15, background: `${cfg.c}18`, border: `2px solid ${cfg.c}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, zIndex: 1, marginTop: 2 }}>{cfg.e}</div>
+                  {!isLast && <div style={{ width: 2, flex: 1, background: `${cfg.c}25`, minHeight: 16 }} />}
+                </div>
+                <div style={{ flex: 1, marginBottom: 10 }}>
+                  {item.isTransport ? <TransportCard item={item} /> : (
+                    <div className="card" style={{ padding: '10px 14px' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                        <div style={{ fontSize: 14, fontWeight: 700, color: '#3A2218', flex: 1 }}>{item.name}</div>
+                        <div style={{ fontSize: 11, color: '#C96040', fontWeight: 700, background: 'rgba(201,96,64,.1)', padding: '2px 8px', borderRadius: 6, flexShrink: 0, marginLeft: 8 }}>{item.time}</div>
+                      </div>
+                      {item.note && <div style={{ fontSize: 12, color: '#9A7050', marginTop: 3 }}>{item.note}</div>}
+                    </div>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── EXPENSE ───────────────────────────────────────────────────
+function ExpenseScreen({ trip, expenses, setExpenses, budget, setBudget }) {
+  const u = trip.users;
+  const [adding, setAdding] = useState(false);
+  const [editBudget, setEditBudget] = useState(false);
+  const [budgetInput, setBudgetInput] = useState('');
+  const [aaFlags, setAaFlags] = useLS('qw-aa', {});
+  const [form, setForm] = useState({ name: '', amount: '', cat: '餐饮', by: u[0].name });
+  const setF = (k, v) => setForm(p => ({ ...p, [k]: v }));
+
+  const saveExpense = () => {
+    if (!form.name || !form.amount) return;
+    const idx = expenses.length;
+    setExpenses(p => [...p, { ...form, amount: parseFloat(form.amount), date: new Date().toLocaleDateString('zh-CN', { month: 'numeric', day: 'numeric' }) }]);
+    setAaFlags(f => ({ ...f, [idx]: true }));
+    setAdding(false);
+    setForm({ name: '', amount: '', cat: '餐饮', by: u[0].name });
+  };
+
+  const total = expenses.reduce((s, e) => s + e.amount, 0);
+  const aaExp = expenses.filter((_, i) => aaFlags[i] !== false);
+  const aaTotal = aaExp.reduce((s, e) => s + e.amount, 0);
+  const aaPaid = {}; u.forEach(x => aaPaid[x.name] = 0); aaExp.forEach(e => { aaPaid[e.by] = (aaPaid[e.by] || 0) + e.amount; });
+  const diff = (aaPaid[u[0].name] || 0) - aaTotal / 2;
+  const allPaid = {}; u.forEach(x => allPaid[x.name] = 0); expenses.forEach(e => { allPaid[e.by] = (allPaid[e.by] || 0) + e.amount; });
+
+  // donut
+  const catTotals = {};
+  expenses.forEach(e => { catTotals[e.cat] = (catTotals[e.cat] || 0) + e.amount; });
+  const segs = Object.entries(catTotals);
+  const sz = 96, thick = 15, r = (sz - thick) / 2, C = 2 * Math.PI * r;
+  let cum = 0;
+
+  return (
+    <div className="screen">
+      {editBudget && (
+        <div className="overlay" onClick={e => e.target === e.currentTarget && setEditBudget(false)}>
+          <div className="sheet">
+            <div className="handle"/>
+            <div className="serif" style={{ fontSize: 15, fontWeight: 800, color: '#3A2218', marginBottom: 14 }}>设置旅行预算</div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: '#F3E9D8', borderRadius: 10, padding: '10px 14px', border: '1.5px solid #C96040', marginBottom: 16 }}>
+              <span style={{ fontSize: 18, fontWeight: 700, color: '#9A7050' }}>¥</span>
+              <input autoFocus value={budgetInput} onChange={e => setBudgetInput(e.target.value)} onKeyDown={e => e.key === 'Enter' && (setBudget(parseFloat(budgetInput)||0), setEditBudget(false))}
+                style={{ flex: 1, border: 'none', background: 'transparent', fontSize: 22, fontWeight: 800, color: '#3A2218', outline: 'none', fontFamily: 'Georgia,serif' }} placeholder="12000" />
+            </div>
+            <div style={{ display: 'flex', gap: 10 }}>
+              <button onClick={() => setEditBudget(false)} className="btn-ghost">取消</button>
+              <button onClick={() => { setBudget(parseFloat(budgetInput)||0); setEditBudget(false); }} className="btn-primary">确认</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {adding && (
+        <div className="overlay" onClick={e => e.target === e.currentTarget && setAdding(false)}>
+          <div className="sheet">
+            <div className="handle"/>
+            <div className="serif" style={{ fontSize: 15, fontWeight: 800, color: '#3A2218', marginBottom: 14 }}>记一笔</div>
+            <div style={{ marginBottom: 10 }}>
+              <div className="label">金额 (¥) *</div>
+              <input autoFocus className="inp" type="number" placeholder="0.00" value={form.amount} onChange={e => setF('amount', e.target.value)} style={{ fontSize: 24, fontWeight: 800, fontFamily: 'Georgia,serif' }} />
+            </div>
+            <div style={{ marginBottom: 10 }}>
+              <div className="label">描述 *</div>
+              <input className="inp" placeholder="例：午餐、地铁票…" value={form.name} onChange={e => setF('name', e.target.value)} />
+            </div>
+            <div style={{ marginBottom: 10 }}>
+              <div className="label">分类</div>
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                {Object.keys(CAT_CFG).map(cat => (
+                  <button key={cat} onClick={() => setF('cat', cat)} style={{ padding: '6px 12px', borderRadius: 8, fontSize: 13, fontWeight: 600, background: form.cat === cat ? CAT_CFG[cat].c : '#F3E9D8', color: form.cat === cat ? '#fff' : '#9A7050', border: `1px solid ${form.cat === cat ? CAT_CFG[cat].c : '#E8D4B4'}` }}>
+                    {CAT_CFG[cat].e} {cat}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div style={{ marginBottom: 18 }}>
+              <div className="label">谁付款</div>
+              <div style={{ display: 'flex', gap: 10 }}>
+                {u.map(usr => (
+                  <button key={usr.name} onClick={() => setF('by', usr.name)} style={{ flex: 1, padding: '10px', borderRadius: 10, fontWeight: 700, fontSize: 14, background: form.by === usr.name ? usr.color : '#F3E9D8', color: form.by === usr.name ? '#fff' : '#9A7050', border: `1.5px solid ${form.by === usr.name ? usr.color : '#E8D4B4'}` }}>{usr.name}</button>
+                ))}
+              </div>
+            </div>
+            <div style={{ display: 'flex', gap: 10 }}>
+              <button onClick={() => setAdding(false)} className="btn-ghost">取消</button>
+              <button onClick={saveExpense} disabled={!form.name||!form.amount} className="btn-primary" style={{ flex: 2, padding: 12, opacity: (!form.name||!form.amount)?.5:1 }}>保存</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '52px 16px 14px' }}>
+        <span className="serif" style={{ fontSize: 22, fontWeight: 800, color: '#3A2218' }}>花费账单</span>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button onClick={() => { setBudgetInput(String(budget||'')); setEditBudget(true); }} style={{ background: 'rgba(201,96,64,.1)', border: '1px solid rgba(201,96,64,.22)', borderRadius: 8, padding: '5px 10px', fontSize: 11, color: '#C96040', fontWeight: 700 }}>
+            {budget ? `预算 ¥${budget.toLocaleString()}` : '设置预算'}
+          </button>
+          <button onClick={() => setAdding(true)} style={{ width: 32, height: 32, borderRadius: 16, background: 'linear-gradient(140deg,#C96040,#E8A050)', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 4px 12px rgba(201,96,64,.3)' }}>
+            <svg width="13" height="13" viewBox="0 0 14 14"><path d="M7 1v12M1 7h12" stroke="#fff" strokeWidth="2.2" strokeLinecap="round"/></svg>
+          </button>
+        </div>
+      </div>
+
+      {expenses.length === 0 ? (
+        <div className="empty">
+          <div className="empty-icon">💸</div>
+          <div style={{ fontSize: 14, fontWeight: 600, color: '#9A7050' }}>还没有支出记录</div>
+          <div style={{ fontSize: 12, color: '#C0A080' }}>点右上角「+」记录花费</div>
+          <button onClick={() => setAdding(true)} className="btn-primary" style={{ marginTop: 8, width: 'auto', padding: '12px 28px' }}>记一笔</button>
+        </div>
+      ) : (
+        <>
+          {/* summary */}
+          <div style={{ margin: '0 16px 12px', background: 'linear-gradient(155deg,#B85438,#C96040 45%,#E09850)', borderRadius: 16, padding: 20, boxShadow: '0 8px 28px rgba(201,96,64,.28)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+              <div>
+                <div style={{ color: 'rgba(255,255,255,.6)', fontSize: 11, fontWeight: 600, letterSpacing: 1 }}>TOTAL SPENT</div>
+                <div className="serif" style={{ color: '#fff', fontSize: 36, fontWeight: 900, lineHeight: 1.1 }}>¥{total.toLocaleString()}</div>
+              </div>
+              {budget > 0 && <div style={{ textAlign: 'right' }}>
+                <div style={{ color: 'rgba(255,255,255,.6)', fontSize: 10 }}>预算{total>budget?'超出':'剩余'}</div>
+                <div style={{ color: total>budget?'#FFD080':'#fff', fontSize: 15, fontWeight: 800, marginTop: 2 }}>¥{Math.abs(budget-total).toLocaleString()}</div>
+              </div>}
+            </div>
+            <div style={{ display: 'flex', gap: 14, marginTop: 12, paddingTop: 12, borderTop: '1px solid rgba(255,255,255,.18)' }}>
+              {u.map((usr, i) => (
+                <div key={i} style={{ flex: 1 }}>
+                  <div style={{ color: 'rgba(255,255,255,.6)', fontSize: 11, marginBottom: 2 }}>{usr.name} 已付</div>
+                  <div className="serif" style={{ color: '#fff', fontSize: 17, fontWeight: 800 }}>¥{(allPaid[usr.name]||0).toLocaleString()}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* AA */}
+          <div className="card p" style={{ margin: '0 16px 12px' }}>
+            <div style={{ fontSize: 13, fontWeight: 700, color: '#3A2218', marginBottom: 10 }}>⚖️ AA 结算</div>
+            <div style={{ display: 'flex', gap: 10, marginBottom: 10 }}>
+              {u.map((usr, i) => (
+                <div key={i} style={{ flex: 1, textAlign: 'center' }}>
+                  <div style={{ width: 40, height: 40, borderRadius: 20, background: usr.color, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 800, fontSize: 14, margin: '0 auto 4px' }}>{usr.initial}</div>
+                  <div style={{ fontSize: 12, color: '#3A2218', fontWeight: 600 }}>{usr.name}</div>
+                  <div style={{ fontSize: 11, color: '#9A7050' }}>¥{(aaPaid[usr.name]||0).toLocaleString()}</div>
+                </div>
+              ))}
+            </div>
+            {aaTotal > 0 ? (Math.abs(diff) < 1
+              ? <div style={{ textAlign: 'center', color: '#4AAE78', fontSize: 13, fontWeight: 700 }}>✓ AA 已结清</div>
+              : <div style={{ background: 'rgba(201,96,64,.07)', borderRadius: 10, padding: '10px', textAlign: 'center', border: '1px solid rgba(201,96,64,.15)' }}>
+                  <span style={{ fontSize: 13, color: '#3A2218' }}>
+                    <b style={{ color: diff<0?u[0].color:u[1].color }}>{diff<0?u[0].name:u[1].name}</b>
+                    {' 应付 '}<b style={{ color: '#C96040', fontSize: 15 }}>¥{Math.round(Math.abs(diff)).toLocaleString()}</b>
+                    {' 给 '}<b style={{ color: diff<0?u[1].color:u[0].color }}>{diff<0?u[1].name:u[0].name}</b>
+                  </span>
+                </div>
+            ) : null}
+          </div>
+
+          {/* donut (only if multiple cats) */}
+          {segs.length > 1 && (
+            <div className="card p" style={{ margin: '0 16px 12px' }}>
+              <div className="serif" style={{ fontSize: 13, fontWeight: 700, color: '#3A2218', marginBottom: 12 }}>分类占比</div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+                <svg width={sz} height={sz} style={{ flexShrink: 0 }}>
+                  <circle cx={sz/2} cy={sz/2} r={r} fill="none" stroke="#E8D4B4" strokeWidth={thick}/>
+                  {segs.map(([cat, val], i) => {
+                    const color = (CAT_CFG[cat]||{c:'#CCC'}).c;
+                    const len = (val/total)*C, off = C/4-cum; cum += len;
+                    return <circle key={i} cx={sz/2} cy={sz/2} r={r} fill="none" stroke={color} strokeWidth={thick-2} strokeDasharray={`${Math.max(len-2,0)} ${C}`} strokeDashoffset={off}/>;
+                  })}
+                  <text x={sz/2} y={sz/2-3} textAnchor="middle" fontSize={9} fill="#9A7050">合计</text>
+                  <text x={sz/2} y={sz/2+11} textAnchor="middle" fontSize={13} fontWeight={800} fill="#3A2218">¥{(total/1000).toFixed(1)}K</text>
+                </svg>
+                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  {segs.map(([cat, val]) => {
+                    const cfg = CAT_CFG[cat]||{c:'#888'};
+                    return (
+                      <div key={cat} style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+                        <div style={{ width: 8, height: 8, borderRadius: 2, background: cfg.c, flexShrink: 0 }}/>
+                        <div style={{ flex: 1, fontSize: 12, color: '#3A2218' }}>{cat}</div>
+                        <div style={{ fontSize: 12, fontWeight: 700, color: '#3A2218' }}>¥{val.toLocaleString()}</div>
+                        <div style={{ fontSize: 10, color: '#9A7050', width: 30, textAlign: 'right' }}>{Math.round(val/total*100)}%</div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* list */}
+          <div style={{ padding: '0 16px' }}>
+            <div className="serif" style={{ fontSize: 13, fontWeight: 700, color: '#3A2218', marginBottom: 8 }}>支出明细</div>
+            {expenses.map((e, i) => {
+              const cfg = CAT_CFG[e.cat]||{e:'📌',c:'#888',bg:'#eee'};
+              const isAA = aaFlags[i] !== false;
+              return (
+                <div key={i} className="card" style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '11px 12px', marginBottom: 8, opacity: isAA?1:.7 }}>
+                  <div style={{ width: 36, height: 36, borderRadius: 10, background: cfg.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 17, flexShrink: 0 }}>{cfg.e}</div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: '#3A2218', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{e.name}</div>
+                    <div style={{ fontSize: 11, color: '#9A7050' }}>{e.by} · {e.date}</div>
+                  </div>
+                  <div style={{ fontSize: 15, fontWeight: 800, color: '#3A2218', flexShrink: 0 }}>¥{e.amount.toLocaleString()}</div>
+                  <button onClick={() => setAaFlags(f => ({ ...f, [i]: !isAA }))} style={{ flexShrink: 0, padding: '4px 9px', borderRadius: 20, background: isAA?'#C96040':'transparent', border: isAA?'none':'1px dashed #E8D4B4', color: isAA?'#fff':'#9A7050', fontSize: 11, fontWeight: 700 }}>{isAA?'AA':'不AA'}</button>
+                </div>
+              );
+            })}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+// ── PACKING ───────────────────────────────────────────────────
+function PackingScreen({ packing, setPacking }) {
+  const [checked, setChecked] = useState(() => {
+    try { const s = localStorage.getItem('qw-checked2'); return s ? JSON.parse(s) : {}; } catch { return {}; }
+  });
+  const setC = (key, val) => setChecked(p => {
+    const next = { ...p, [key]: val };
+    try { localStorage.setItem('qw-checked2', JSON.stringify(next)); } catch {}
+    return next;
+  });
+  const [addingCat, setAddingCat] = useState(null);
+  const [newText, setNewText] = useState('');
+
+  const allItems = Object.values(packing).flat();
+  const total = allItems.length;
+  const doneCount = Object.entries(packing).reduce((sum, [cat, items]) => sum + items.filter((_, i) => checked[`${cat}-${i}`]).length, 0);
+  const pct = total > 0 ? doneCount / total : 0;
+  const circ = 2 * Math.PI * 30;
+
+  const addItem = cat => {
+    const name = newText.trim(); if (!name) return;
+    setPacking(p => ({ ...p, [cat]: [...(p[cat]||[]), { name, done: false }] }));
+    setAddingCat(null); setNewText('');
+  };
+
+  return (
+    <div className="screen">
+      <div style={{ padding: '52px 16px 14px' }}>
+        <span className="serif" style={{ fontSize: 22, fontWeight: 800, color: '#3A2218' }}>打包清单</span>
+      </div>
+
+      <div className="card p" style={{ margin: '0 16px 14px', display: 'flex', alignItems: 'center', gap: 18 }}>
+        <svg width={72} height={72} viewBox="0 0 72 72" style={{ flexShrink: 0 }}>
+          <circle cx={36} cy={36} r={30} fill="none" stroke="#E8D4B4" strokeWidth={7}/>
+          <circle cx={36} cy={36} r={30} fill="none" stroke="#C96040" strokeWidth={7}
+            strokeDasharray={`${circ*pct} ${circ}`} strokeLinecap="round" transform="rotate(-90 36 36)" style={{ transition: 'stroke-dasharray .4s' }}/>
+          <text x={36} y={41} textAnchor="middle" fontSize={15} fontWeight={800} fill="#3A2218">{Math.round(pct*100)}%</text>
+        </svg>
+        <div>
+          <div className="serif" style={{ fontSize: 20, fontWeight: 900, color: '#3A2218' }}>{doneCount}/{total} 已打包</div>
+          <div style={{ fontSize: 12, color: '#9A7050', marginTop: 4 }}>{total-doneCount > 0 ? `还有 ${total-doneCount} 项待完成` : total > 0 ? '🎉 全部打包完成！' : '还没有物品'}</div>
+        </div>
+      </div>
+
+      <div style={{ padding: '0 16px' }}>
+        {PACKING_CATS.map(cat => {
+          const items = packing[cat] || [];
+          return (
+            <div key={cat} style={{ marginBottom: 12 }}>
+              <div style={{ fontSize: 12, fontWeight: 700, color: '#9A7050', marginBottom: 6 }}>{cat}</div>
+              <div className="card" style={{ overflow: 'hidden' }}>
+                {items.length === 0 && addingCat !== cat && (
+                  <div style={{ padding: '10px 14px', fontSize: 13, color: '#C0A080' }}>空，点下方添加</div>
+                )}
+                {items.map((item, i) => {
+                  const key = `${cat}-${i}`, isDone = checked[key];
+                  return (
+                    <div key={i} onClick={() => setC(key, !isDone)} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '11px 14px', borderBottom: `1px solid #EDE0CC` }}>
+                      <div style={{ width: 22, height: 22, borderRadius: 6, border: isDone?'none':'2px solid #E8D4B4', background: isDone?'#C96040':'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, transition: 'all .2s' }}>
+                        {isDone && <svg width="11" height="9" viewBox="0 0 11 9"><path d="M1 4l3 3 6-6" stroke="#fff" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round"/></svg>}
+                      </div>
+                      <span style={{ fontSize: 14, color: isDone?'#9A7050':'#3A2218', textDecoration: isDone?'line-through':'none', flex: 1 }}>{item.name}</span>
+                    </div>
+                  );
+                })}
+                {addingCat === cat ? (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px' }}>
+                    <input autoFocus className="inp" value={newText} onChange={e => setNewText(e.target.value)}
+                      onKeyDown={e => { if (e.key==='Enter') addItem(cat); if (e.key==='Escape') setAddingCat(null); }}
+                      placeholder="输入物品名称…" style={{ flex: 1 }}/>
+                    <button onClick={() => addItem(cat)} style={{ padding: '7px 12px', borderRadius: 8, background: '#C96040', color: '#fff', fontSize: 12, fontWeight: 700 }}>添加</button>
+                    <button onClick={() => setAddingCat(null)} style={{ padding: '7px 10px', borderRadius: 8, border: '1px dashed #E8D4B4', color: '#9A7050', fontSize: 12 }}>×</button>
+                  </div>
+                ) : (
+                  <div onClick={() => { setAddingCat(cat); setNewText(''); }} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '9px 14px', color: '#9A7050', fontSize: 13 }}>
+                    <span style={{ fontSize: 16 }}>+</span> 添加物品
+                  </div>
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ── NOTES ─────────────────────────────────────────────────────
+function NotesScreen({ trip, messages, setMessages }) {
+  const u = trip.users;
+  const [input, setInput] = useState('');
+  const [me, setMe] = useState(u[0].name);
+  const listRef = useRef(null);
+
+  const send = () => {
+    const text = input.trim(); if (!text) return;
+    setMessages(m => [...m, { id: Date.now(), from: me, text, time: '刚刚', me: me === u[1].name }]);
+    setInput('');
+    setTimeout(() => { if (listRef.current) listRef.current.scrollTop = listRef.current.scrollHeight; }, 50);
+  };
+
+  useEffect(() => { setTimeout(() => { if (listRef.current) listRef.current.scrollTop = listRef.current.scrollHeight; }, 100); }, []);
+
+  return (
+    <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+      <div style={{ padding: '52px 16px 8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
+        <span className="serif" style={{ fontSize: 22, fontWeight: 800, color: '#3A2218' }}>旅行备注</span>
+        {/* speaker toggle */}
+        <div style={{ display: 'flex', background: '#F3E9D8', borderRadius: 20, border: '1px dashed #E8D4B4', padding: 3, gap: 3 }}>
+          {u.map(usr => (
+            <button key={usr.name} onClick={() => setMe(usr.name)} style={{ padding: '4px 12px', borderRadius: 16, fontSize: 11, fontWeight: 700, background: me===usr.name ? usr.color : 'transparent', color: me===usr.name ? '#fff' : '#9A7050', transition: 'all .2s' }}>{usr.name}</button>
+          ))}
+        </div>
+      </div>
+
+      <div ref={listRef} style={{ flex: 1, minHeight: 0, overflowY: 'auto', WebkitOverflowScrolling: 'touch', padding: '0 16px 12px', display: 'flex', flexDirection: 'column', gap: 12,
+        backgroundImage: 'repeating-linear-gradient(transparent,transparent 27px,rgba(180,140,100,.06) 27px,rgba(180,140,100,.06) 28px)', backgroundPosition: '0 16px' }}>
+        {messages.length === 0 && (
+          <div className="empty" style={{ paddingTop: 32 }}>
+            <div className="empty-icon">💬</div>
+            <div style={{ fontSize: 13, color: '#9A7050', fontWeight: 600 }}>还没有消息</div>
+            <div style={{ fontSize: 12, color: '#C0A080' }}>在下方输入，和 Ta 分享想法</div>
+          </div>
+        )}
+        {messages.map(note => {
+          const isMe = note.me;
+          const usr = isMe ? u[1] : u[0];
+          return (
+            <div key={note.id} style={{ display: 'flex', flexDirection: isMe?'row-reverse':'row', alignItems: 'flex-end', gap: 8 }}>
+              <div style={{ width: 28, height: 28, borderRadius: 14, background: usr.color, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: 11, fontWeight: 700, flexShrink: 0 }}>{usr.initial}</div>
+              <div style={{ maxWidth: '72%' }}>
+                <div style={{ fontSize: 10, color: '#9A7050', marginBottom: 3, textAlign: isMe?'right':'left' }}>{note.from}</div>
+                <div style={{ background: isMe?'linear-gradient(140deg,#C96040,#E8A050)':'#FEF8EE', color: isMe?'#fff':'#3A2218', borderRadius: isMe?'14px 4px 14px 14px':'4px 14px 14px 14px', padding: '10px 14px', fontSize: 14, lineHeight: 1.5, boxShadow: isMe?'0 4px 16px rgba(201,96,64,.22)':'0 2px 8px rgba(60,30,10,.06)', border: !isMe?'1px dashed #E8D4B4':'none' }}>{note.text}</div>
+                <div style={{ fontSize: 10, color: '#9A7050', marginTop: 3, textAlign: isMe?'right':'left' }}>{note.time}</div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      <div style={{ background: '#FBF2E0', borderTop: '1px solid #E4CFA6', padding: '10px 16px calc(10px + env(safe-area-inset-bottom,0px))', display: 'flex', gap: 10, alignItems: 'center', flexShrink: 0 }}>
+        <input value={input} onChange={e => setInput(e.target.value)} onKeyDown={e => e.key==='Enter'&&send()}
+          placeholder="写点什么…" className="inp" style={{ flex: 1 }} />
+        <button onClick={send} style={{ width: 42, height: 42, borderRadius: 21, background: input.trim()?'linear-gradient(140deg,#C96040,#E8A050)':'#E8D4B4', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, transition: 'all .2s', boxShadow: input.trim()?'0 4px 14px rgba(201,96,64,.35)':'none' }}>
+          <svg width="14" height="14" viewBox="0 0 14 14"><path d="M7 12V2M2 7l5-5 5 5" stroke="#fff" strokeWidth="2.2" fill="none" strokeLinecap="round" strokeLinejoin="round"/></svg>
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ── NAV ───────────────────────────────────────────────────────
+const NAV = [
+  { id:'home', label:'首页', icon:(a,c)=><svg width="22" height="22" viewBox="0 0 22 22"><path d="M3 10L11 3l8 7v9a1 1 0 01-1 1H14v-5H8v5H4a1 1 0 01-1-1z" fill={a?c:'none'} stroke={c} strokeWidth="1.7" strokeLinejoin="round"/></svg> },
+  { id:'itinerary', label:'行程', icon:(a,c)=><svg width="22" height="22" viewBox="0 0 22 22"><rect x="3" y="4" width="16" height="15" rx="2.5" fill={a?c:'none'} stroke={c} strokeWidth="1.7"/><path d="M7 2v4M15 2v4M3 9h16" stroke={c} strokeWidth="1.7" strokeLinecap="round"/></svg> },
+  { id:'expense', label:'账单', icon:(a,c)=><svg width="22" height="22" viewBox="0 0 22 22"><rect x="2" y="5" width="18" height="13" rx="2.5" fill={a?c:'none'} stroke={c} strokeWidth="1.7"/><path d="M6 10h4M12 10h4M6 14h3M13 14h3" stroke={a?'#fff':c} strokeWidth="1.3" strokeLinecap="round"/></svg> },
+  { id:'packing', label:'清单', icon:(a,c)=><svg width="22" height="22" viewBox="0 0 22 22"><rect x="4" y="2" width="14" height="18" rx="2" fill={a?c:'none'} stroke={c} strokeWidth="1.7"/><path d="M8 7h6M8 11h6M8 15h4" stroke={a?'#fff':c} strokeWidth="1.5" strokeLinecap="round"/></svg> },
+  { id:'notes', label:'备注', icon:(a,c)=><svg width="22" height="22" viewBox="0 0 22 22"><path d="M18 13.5A2.5 2.5 0 0115.5 16H7l-4 4V5a2 2 0 012-2h10.5A2.5 2.5 0 0118 5.5z" fill={a?c:'none'} stroke={c} strokeWidth="1.7" strokeLinejoin="round"/></svg> },
+];
+
+// ── APP ───────────────────────────────────────────────────────
+function App() {
+  const [trip, setTrip] = useLS('qw-trip', null);
+  const [tab, setTab] = useState('home');
+  const [days, setDays] = useLS('qw-days', [{ label:'Day 1', date:'', items:[] }]);
+  const [expenses, setExpenses] = useLS('qw-expenses', []);
+  const [budget, setBudget] = useLS('qw-budget', 0);
+  const [packing, setPacking] = useLS('qw-packing', Object.fromEntries(PACKING_CATS.map(c => [c, []])));
+  const [messages, setMessages] = useLS('qw-messages', []);
+
+  const createTrip = (form) => {
+    const users = [
+      { name: form.user1, initial: form.user1.slice(0,1), color: '#F07A5A' },
+      { name: form.user2, initial: form.user2.slice(0,1), color: '#FFB84D' },
+    ];
+    setTrip({ name: form.name, city: form.city, dateStart: form.dateStart, dateEnd: form.dateEnd, users });
+    if (form.budget) setBudget(parseFloat(form.budget));
+    // seed Day 1 with dates
+    if (form.dateStart) {
+      const d = new Date(form.dateStart);
+      setDays([{ label:'Day 1', date:`${d.getMonth()+1}/${d.getDate()}`, items:[] }]);
+    }
+  };
+
+  if (!trip) return <Onboarding onCreate={createTrip} />;
+
+  const screens = {
+    home: <HomeScreen trip={trip} expenses={expenses} budget={budget} onTab={setTab} />,
+    itinerary: <ItineraryScreen days={days} setDays={setDays} />,
+    expense: <ExpenseScreen trip={trip} expenses={expenses} setExpenses={setExpenses} budget={budget} setBudget={setBudget} />,
+    packing: <PackingScreen packing={packing} setPacking={setPacking} />,
+    notes: <NotesScreen trip={trip} messages={messages} setMessages={setMessages} />,
+  };
+
+  return (
+    <div className="app">
+      <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+        {tab === 'notes' ? screens.notes : screens[tab]}
+      </div>
+      <nav className="nav">
+        {NAV.map(({ id, label, icon }) => {
+          const active = tab === id;
+          const c = active ? '#C96040' : '#9A7050';
+          return (
+            <button key={id} className={`nav-btn${active?' active':''}`} onClick={() => setTab(id)}>
+              {icon(active, c)}<span>{label}</span>
+            </button>
+          );
+        })}
+      </nav>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
+</script>
+</body>
 </html>
